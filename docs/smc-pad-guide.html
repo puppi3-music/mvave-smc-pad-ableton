@@ -99,6 +99,12 @@
   code { font-family: var(--mono); font-size: 0.88em; }
 
   header { display: grid; gap: 12px; }
+  .photo { margin: 4px 0 0; display: grid; gap: 10px; max-width: 680px; }
+  .photo img {
+    display: block; width: 100%; height: auto; box-sizing: border-box;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+  }
+  .photo figcaption { font-size: 0.92rem; color: var(--muted); }
   nav { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   nav a {
     font-family: var(--cond); font-weight: 600; font-size: 0.95rem;
@@ -304,6 +310,10 @@
     <h1>Using your SMC-PAD with Live</h1>
     <p class="lede">The controller has three presets: one for launching clips, one for programming drum patterns, and one for playing a synth with the pads as a keyboard. Preset 1 also has a mixer one button press away.</p>
     <p><strong>First time?</strong> Do the one-off <a href="#setup">Setup</a> at the bottom of this page, then follow <a href="#flows">Example sessions</a> from the top. They take you from an empty Live set to a recorded jam.</p>
+    <figure class="photo">
+      <img src="smc-pad.jpg" width="920" height="606" alt="The M-Vave SMC-PAD from above: eight knobs in two columns on the left, a four-by-four grid of sixteen pads in the middle, and a column of ten buttons on the right.">
+      <figcaption>The controller. Knobs 1–8 run in pairs from the bottom left. Pad 1 is bottom-left and pad 16 top-right, counting along each row. Down the right side: Bluetooth, <kbd>PAD BANK</kbd>, <kbd>KNOB BANK</kbd>, <kbd>&lt;</kbd>, <kbd>&gt;</kbd>, <kbd>Play</kbd>, <kbd>Stop</kbd>, <kbd>Record</kbd>, <kbd>Shift</kbd> and <kbd>Note Repeat</kbd>. The small printed labels are the factory functions; the presets in this guide give most controls new jobs. Product image © M-Vave.</figcaption>
+    </figure>
     <nav aria-label="Sections">
       <a href="#flows">Example sessions</a>
       <a href="#quick">I want to…</a>

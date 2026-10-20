@@ -171,6 +171,7 @@ launcher and sequencer sources in `reference/`.
 ├── MVave_SMC_STEPSEQ/    preset 2: the step sequencer                     (copy into Live)
 ├── docs/
 │   ├── smc-pad-guide.html  the user guide: example sessions, cheat sheet, every mode
+│   ├── smc-pad.jpg         picture of the controller used in the guide (© M-Vave)
 │   ├── index.html          forwards the GitHub Pages site root to the guide
 │   ├── INSTALL.md          setup, verification, troubleshooting, customising
 │   ├── STEPSEQ.md          the step sequencer: behaviour, design, what is unconfirmed
