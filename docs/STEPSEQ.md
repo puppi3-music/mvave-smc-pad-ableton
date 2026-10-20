@@ -5,8 +5,8 @@ lane in the selected MIDI clip, with LED feedback and a playhead that chases
 Live's own playback. A second view turns the grid into four lanes by four steps,
 so a kick/clap/hat/open-hat groove is readable at a glance.
 
-For how to *use* it, the user guide ([smc-pad-guide.html](smc-pad-guide.html),
-"Step sequencer") is the place to start. This file is for changing it: what
+For how to *use* it, the user guide ([online](https://puppi3-music.github.io/mvave-smc-pad-ableton/smc-pad-guide.html), or
+[smc-pad-guide.html](smc-pad-guide.html) in a download, "Step sequencer") is the place to start. This file is for changing it: what
 every control does, why it is built the way it is, and what is still
 unconfirmed.
 

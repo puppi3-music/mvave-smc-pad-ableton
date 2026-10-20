@@ -15,9 +15,10 @@ used to measure it. The manufacturer publishes no MIDI implementation (both its
 manuals are marketing copy), so as far as we know that reference exists nowhere
 else.
 
-> **Here to make music?** Open **[docs/smc-pad-guide.html](docs/smc-pad-guide.html)**
-> in a browser. It's the user guide: four step-by-step example sessions, an
-> "I want to…" cheat sheet, every mode and the one-off setup. The rest of this
+> **Here to make music?** Read the **[user guide online](https://puppi3-music.github.io/mvave-smc-pad-ableton/smc-pad-guide.html)**
+> (or open `docs/smc-pad-guide.html` from a download in any browser). It has
+> four step-by-step example sessions, an "I want to…" cheat sheet, every mode
+> and the one-off setup. The rest of this
 > README is for people installing, porting or changing the scripts.
 
 ---
@@ -26,7 +27,7 @@ else.
 
 | You want to… | Read |
 |---|---|
-| Play: example sessions, every control, quick fixes | [docs/smc-pad-guide.html](docs/smc-pad-guide.html) |
+| Play: example sessions, every control, quick fixes | [the user guide](https://puppi3-music.github.io/mvave-smc-pad-ableton/smc-pad-guide.html) (`docs/smc-pad-guide.html`) |
 | Install on Windows or macOS, check it worked, troubleshoot | [docs/INSTALL.md](docs/INSTALL.md) |
 | Understand or change the step sequencer | [docs/STEPSEQ.md](docs/STEPSEQ.md) |
 | Know exactly what the hardware sends and accepts, and the `.spc` file format | [docs/HARDWARE.md](docs/HARDWARE.md) |
@@ -170,6 +171,7 @@ launcher and sequencer sources in `reference/`.
 ├── MVave_SMC_STEPSEQ/    preset 2: the step sequencer                     (copy into Live)
 ├── docs/
 │   ├── smc-pad-guide.html  the user guide: example sessions, cheat sheet, every mode
+│   ├── index.html          forwards the GitHub Pages site root to the guide
 │   ├── INSTALL.md          setup, verification, troubleshooting, customising
 │   ├── STEPSEQ.md          the step sequencer: behaviour, design, what is unconfirmed
 │   ├── HARDWARE.md         the measured MIDI reference: ports, notes, LED palette,

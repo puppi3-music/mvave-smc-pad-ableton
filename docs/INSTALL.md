@@ -13,8 +13,8 @@ and the controller sends its lit pads and its encoders on different ports.
 `MVave_SMC_KNOBS` also reaches into `MVave_SMC_PAD` to move the session box, so
 **install both of those**. `MVave_SMC_STEPSEQ` is needed only for preset 2.
 
-Once it's installed, the user guide, [smc-pad-guide.html](smc-pad-guide.html),
-shows how to use it.
+Once it's installed, the user guide ([online](https://puppi3-music.github.io/mvave-smc-pad-ableton/smc-pad-guide.html), or
+[smc-pad-guide.html](smc-pad-guide.html) in a download) shows how to use it.
 
 ---
 
