@@ -7,6 +7,9 @@ venv-midi/
 tools/venv-midi/
 tools/venv/
 
+# Files set aside for review before deleting (see _to-review/README.txt)
+_to-review/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

@@ -1,7 +1,7 @@
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-09-06'
+SCRIPT_REVISION = '2026-10-20'
 
 # Avoid using tabs for indentation, use spaces.
 # Don't use floats, they might break things.
@@ -137,16 +137,154 @@ CLIP_RECORDING = 14        # clip is recording
 CLIP_TRIGGERED_PLAY = 21   # queued, waiting for the quantise point
 CLIP_TRIGGERED_REC = 24    # queued to record
 
+# A pad pressed on an empty slot of a MIDI track makes an empty clip this many
+# bars long, in the song's time signature, selected and open in the clip view --
+# what double-clicking the slot does, armed or not. Audio tracks keep the old
+# press: record if armed, else stop the track. 0 restores the old press on MIDI
+# tracks too.
+NEW_CLIP_BARS = 1
+
+# Where the grid's LEDs are addressed, as an offset from each pad's note.
+# Measured 2026-10-07: a pad whose editor LED number equals its own note shows
+# white when sent velocity 0 -- it cannot be switched off. With the LED number
+# moved off the note, velocity 0 is dark again. So the preset gives every grid
+# pad LED number = note + PAD_LED_OFFSET (33-48), and the script lights that
+# number instead of the note. 0 restores LED-on-the-note.
+# 33-48 stays clear of the sequencer's 101-121, so neither preset lights the
+# other's pads.
+PAD_LED_OFFSET = 32
+
+# Startup intro
+# -------------
+# When Live loads, a rainbow runs diagonally across the grid from PAD1 to the
+# top-right pad for ~3 s, then PAD1 flashes for ~2 s to say preset 1 is loaded
+# (Shift + PAD1 is preset 1), then the clip colours come back. Ticks are Live's
+# display ticks, about 100 ms each. StartupIntro.py has the details.
+INTRO_ENABLED = True        # False skips it
+# The pads can't blend: each colour is a palette index (HARDWARE.md 3.2), so
+# the rainbow is as smooth as its list is long. These 18 were picked on the
+# device on 2026-10-20 from a survey of the whole palette (HARDWARE.md 3.2.1),
+# by eye from photos, in hue order, round to red-pink again:
+#   14 red-pink, 15 orange, 59 apricot, 46 yellow, 4 yellow-lime, 19 green,
+#    5 mint, 6 cyan, 20 cyan-sky, 62 sky blue, 21 blue, 63 cornflower,
+#    9 periwinkle, 24 lavender, 11 blue-violet, 26 violet, 12 orchid, 56 pink
+# Pale entries were left out: in a moving rainbow they flash white. So were
+# near-duplicates (7 looks like 20).
+INTRO_RAINBOW = (14, 15, 59, 46, 4, 19, 5, 6, 20, 62, 21, 63, 9, 24, 11, 26, 12, 56)
+INTRO_RAINBOW_TICKS = 30    # ~3 s
+# How many ticks each colour lasts on a pad; each diagonal is one colour behind
+# the last. 1, the fastest that shows every colour, takes each pad round the
+# 18 colours about 1.7 times in ~3 s. 2 is half the speed.
+INTRO_COLOUR_TICKS = 1
+INTRO_FLASH_TICKS = 20      # ~2 s
+INTRO_FLASH_COLOUR = 40     # white
+INTRO_FLASH_STEP = 2        # ticks on, then as many off: 5 flashes in 2 s
+# Started by MVave_SMC_KNOBS once the controller shows preset 1; without that
+# script, the intro starts on its own after this many ticks (~2 s).
+INTRO_FALLBACK_TICKS = 20
+
+# Mixer bank
+# ----------
+# PAD BANK flips the 16 pads to a second bank (presets/preset1-launcher-
+# mixer.spc, built by tools/make_presets.py). Its pads send notes 49-64 and
+# work on the four tracks in the session box, one column per track:
+#
+#   49 50 51 52   track on/off -- lit while the track is NOT muted
+#   53 54 55 56   solo
+#   57 58 59 60   arm
+#   61 62 63 64   stop the track's clip -- lit while a clip plays there
+#
+# The notes live in TRACKMUTE/TRACKSOLO/TRACKREC/TRACKSTOP below. Their LEDs
+# sit at note + MIXER_LED_OFFSET (85-100), clear of the clip grid (33-48)
+# and the sequencer (69-84), for the same stuck-white reason as above.
+MIXER_LED_OFFSET = 36
+MIXER_TRACK_ON = 17         # yellow
+MIXER_SOLO = 21             # bright blue
+MIXER_ARM = 14              # red-pink
+MIXER_STOP = 24             # light purple: a clip is playing, press to stop
+MIXER_STOP_TRIGGERED = 40   # white: stop is queued for the quantise point
+
+# Keyboard (preset 3)
+# -------------------
+# Preset 3's pads play notes in a scale, like a Launchpad's Note mode. Both of
+# its pad banks are lit MCP pads on this port, built by tools/make_presets.py.
+#
+# Bank A plays. Its pads send KEYS_NOTES (PAD1 bottom-left first) and the script
+# rewrites each one to the scale note that pad stands for, which Live passes to
+# the armed track like a note from a keyboard (Live's note translation, the way
+# Push plays notes). Lit pads always send velocity 127 (HARDWARE.md 5.6), so
+# every note plays at full velocity.
+#
+# Bank B (PAD BANK) sets it up. Its pads send SETTINGS_NOTES, PAD1 bottom-left:
+#
+#   13 oct down   14 oct up   15 prev scale   16 next scale     <- top
+#    9 G#         10 A        11 A#           12 B
+#    5 E           6 F         7 F#            8 G
+#    1 C           2 C#        3 D             4 D#             <- bottom
+#
+# Pads 1-12 pick the root note; pressing the root that is already selected
+# switches the layout between in key (only scale notes, Launchpad's default)
+# and chromatic (every semitone, notes outside the scale dark). The root and
+# scale are Live's own (Live 12's Scale in the control bar), so changing them
+# in Live moves the pads too.
+#
+# 85-100 and 22-37 are notes neither script on this port listens to or
+# lights. Their LEDs, 1-16 and 49-64, are clear of the clip grid (33-48), the
+# sequencer (69-84), the mixer (85-100) and the buttons (17-21, 117-121).
+KEYS_NOTES = tuple(range(85, 101))
+KEYS_LEDS = tuple(range(1, 17))
+SETTINGS_NOTES = tuple(range(22, 38))
+SETTINGS_LEDS = tuple(range(49, 65))
+# The channel the keyboard's notes reach the track on (1 = MIDI channel 2).
+# It must not be BUTTONCHANNEL: Live looks a translated note up in this
+# script's own map, so on channel 1 a scale note of 55 pressed the mixer's
+# solo button for track 3 instead of playing (measured 2026-10-17). Nothing
+# on this port listens on MIDI channel 2.
+KEYS_CHANNEL = 1
+KEYS_ROOT_NOTE = 0          # C; used until Live's scale is read
+KEYS_SCALE = 'Major'
+KEYS_OCTAVE = 3             # bottom-left pad's octave in Live's naming (C3 = 60)
+KEYS_OCTAVE_MIN = -1         # C-1 = MIDI 12
+KEYS_OCTAVE_MAX = 8
+KEYS_CHROMATIC = False      # start in the chromatic layout instead of in key
+KEYS_FOLLOW_LIVE_SCALE = True   # read and write Live 12's song scale
+KEYS_ROOT = 21              # bright blue: the root note, in every octave
+KEYS_FIFTH = 24             # light purple: the fifth, for chord shapes; 40 to
+                            # light it like any other scale note
+KEYS_IN_SCALE = 40          # white: every other note of the scale
+KEYS_OUT_OF_SCALE = 0       # chromatic layout: notes outside the scale
+KEYS_SETTINGS_ROOT = 21     # bright blue: the selected root, in key
+KEYS_SETTINGS_CHROMATIC = 8 # cold white-blue: the selected root, chromatic
+KEYS_SETTINGS_WHITE = 40    # white: the other natural notes
+KEYS_SETTINGS_BLACK = 24    # light purple: the other sharps
+# Each octave pad lights in the colour of the octave it moves to, from a
+# cold-to-hot ladder from KEYS_OCTAVE_MIN up: purple, blue, light blue,
+# turquoise, yellow (octave 3, the default), orange, red-pink, pink, light
+# pink, white. At octave 3, down is turquoise and up is orange. The
+# palette has no ramp to compute (HARDWARE.md 3.2), so it is a list. Green is
+# skipped: it is the scale pads' colour. Each pad goes dark at its end of the
+# range. An octave past the end of the list takes the nearest end's colour.
+KEYS_OCTAVE_COLOURS = (24, 21, 7, 6, 4, 15, 14, 12, 11, 13)
+KEYS_SETTINGS_SCALE = 5     # green
+# Stepping through the scales, the scale pad you pressed flickers white
+# KEYS_SCALE_FLASH_TIMES times when it lands back on Major, the top of the
+# list, so you can tell where the list starts without reading Live's status
+# bar. Each white and each green between lasts KEYS_SCALE_FLASH_TICKS of
+# Live's display ticks, about 100 ms each.
+KEYS_SCALE_FLASH = 40       # white
+KEYS_SCALE_FLASH_TIMES = 3
+KEYS_SCALE_FLASH_TICKS = 1  # ~0.1 s, so three flickers take ~0.6 s
+
 # Track Control
 MASTERSEL = -1      # Master track select
 SELTRACKREC = -1    # Arm Selected Track
 SELTRACKSOLO = -1   # Solo Selected Track
 SELTRACKMUTE = -1   # Mute Selected Track
 
-TRACKSTOP = (-1,  # Track 1 Clip Stop
-             -1,  # Track 2
-             -1,  # Track 3
-             -1,  # Track 4
+TRACKSTOP = (61,  # Track 1 Clip Stop
+             62,  # Track 2
+             63,  # Track 3
+             64,  # Track 4
              -1,  # Track 5
              -1,  # Track 6
              -1,  # Track 7
@@ -163,30 +301,30 @@ TRACKSEL = (-1,  # Track 1 Select
             -1,  # Track 8
             )
 
-TRACKMUTE = (-1,  # Track 1 On/Off
-             -1,  # Track 2
-             -1,  # Track 3
-             -1,  # Track 4
+TRACKMUTE = (49,  # Track 1 On/Off
+             50,  # Track 2
+             51,  # Track 3
+             52,  # Track 4
              -1,  # Track 5
              -1,  # Track 6
              -1,  # Track 7
              -1,  # Track 8
              )
 
-TRACKSOLO = (-1,  # Track 1 Solo
-             -1,  # Track 2
-             -1,  # Track 3
-             -1,  # Track 4
+TRACKSOLO = (53,  # Track 1 Solo
+             54,  # Track 2
+             55,  # Track 3
+             56,  # Track 4
              -1,  # Track 5
              -1,  # Track 6
              -1,  # Track 7
              -1,  # Track 8
              )
 
-TRACKREC = (-1,  # Track 1 Record
-            -1,  # Track 2
-            -1,  # Track 3
-            -1,  # Track 4
+TRACKREC = (57,  # Track 1 Record
+            58,  # Track 2
+            59,  # Track 3
+            60,  # Track 4
             -1,  # Track 5
             -1,  # Track 6
             -1,  # Track 7

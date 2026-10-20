@@ -174,8 +174,10 @@ on Windows they usually show up as MIDIIN2/MIDIIN3 or similar.
 ```
 
 **Reading it:** the SMC-PAD exposes three port pairs. Names differ per OS and per
-driver, so copy what you see; do not copy the names above. This is the only mode
-that ignores `--port`.
+driver, so copy what you see; do not copy the names above. On macOS they are
+`SINCO SMC-PAD-Private`, `SINCO SMC-PAD-Master` and `SINCO Port 3`, so
+`--port "Port 3"` picks the third and `--port SINCO` (for `--listen`) all
+three. This is the only mode that ignores `--port`.
 
 A port pair being present tells you nothing about what it carries. That is the
 next mode's job.
@@ -238,6 +240,13 @@ summary. They flood the output and say nothing about layout.
 **Limit:** a flat listen run is a poor way to map *many* controls, because
 nothing is confirmed while you are doing it. Use `--knobs` for encoders. See
 [Design notes](#design-notes).
+
+> **Lighting pads on this repo's presets.** The modes below that light pads
+> (`--light`, `--sweep`, `--colours`) send note-ons to *LED numbers*. With the
+> editor's exports those equal the pads' notes, which is what the examples
+> here assume. This repo's presets move them (HARDWARE.md 5.2): on preset 1
+> the grid is LEDs 33–48, so `--colours --note 33` lights a pad and
+> `--note 1` lights nothing.
 
 ## `--light` — can the host light the pads at all?
 
@@ -523,7 +532,6 @@ time and feeding the wrong one to the session box moves it 63 tracks per click,
 silently. The clusters are deliberately loose rather than exact sets — an
 encoder that accelerates, or a poll that catches two ticks at once, sends 2 or
 126, and calling that `absolute` is the one answer that wires it up wrong.
-| `-` | nothing received | silent |
 
 The distinction decides how a control can be used. An absolute CC carries a value
 and maps cleanly onto a continuous parameter like volume or cutoff. A relative CC

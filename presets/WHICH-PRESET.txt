@@ -1,0 +1,8 @@
+Load each file into this preset slot in MidiSuite (M-Vave's editor):
+
+  Preset 1   preset1-launcher-mixer.spc    clip launcher, PAD BANK -> mixer
+  Preset 2   preset2-sequencer-drums.spc   step sequencer, PAD BANK -> drum pads
+  Preset 3   preset3-keys.spc              scale keyboard + device knobs, PAD BANK -> key/scale
+
+On the controller, hold Shift and press pad 1, 2 or 3 to switch presets.
+Full setup (scripts and Live's ports): docs/smc-pad-guide.html, "Setup".

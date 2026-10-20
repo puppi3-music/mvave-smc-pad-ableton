@@ -143,15 +143,14 @@ class DetailViewControllerComponent(ControlSurfaceComponent):
         return None
 
     def _detail_view_visibility_changed(self):
+        # The decompile's bare expression statements (is_view_visible() and
+        # is_enabled() calls whose result was thrown away) are gone from here
+        # and the toggle below: each was a call into Live that did nothing.
         if self.is_enabled() and self._detail_toggle_button != None: #not self._shift_pressed and self._detail_toggle_button != None:
             if self.application().view.is_view_visible('Detail'):
-                self.application().view.is_view_visible('Detail')
                 self._detail_toggle_button.turn_on()
             else:
-                self.application().view.is_view_visible('Detail')
                 self._detail_toggle_button.turn_off()
-        else:
-            self.is_enabled()
         return None
 
     def _device_clip_toggle_value(self, value):
@@ -162,25 +161,17 @@ class DetailViewControllerComponent(ControlSurfaceComponent):
         if self.is_enabled(): #and not self._shift_pressed:
             button_is_momentary = self._device_clip_toggle_button.is_momentary()
             if not button_is_momentary or value != 0:
-                not button_is_momentary
-                if not self.application().view.is_view_visible('Detail'):
-                    self.application().view.is_view_visible('Detail')
-                    self.application().view.show_view('Detail')
+                view = self.application().view
+                if not view.is_view_visible('Detail'):
+                    view.show_view('Detail')
+                if not view.is_view_visible('Detail/DeviceChain'):
+                    view.show_view('Detail/DeviceChain')
                 else:
-                    self.application().view.is_view_visible('Detail')
-                if not self.application().view.is_view_visible('Detail/DeviceChain'):
-                    self.application().view.is_view_visible('Detail/DeviceChain')
-                    self.application().view.show_view('Detail/DeviceChain')
-                else:
-                    self.application().view.is_view_visible('Detail/DeviceChain')
-                    self.application().view.show_view('Detail/Clip')
+                    view.show_view('Detail/Clip')
             if button_is_momentary and value != 0:
                 self._show_playing_clip_ticks_delay = SHOW_PLAYING_CLIP_DELAY
             else:
-                button_is_momentary
                 self._show_playing_clip_ticks_delay = -1
-        else:
-            self.is_enabled()
         return None
 
 
@@ -220,13 +211,14 @@ class DetailViewControllerComponent(ControlSurfaceComponent):
                     self.application().view.scroll_view(direction, 'Detail/DeviceChain', (not modifier_pressed))
 
     def _on_timer(self):
-        if self.is_enabled(): # and (not self._shift_pressed):
-            if (self._show_playing_clip_ticks_delay > -1):
-                if (self._show_playing_clip_ticks_delay == 0):
-                    song = self.song()
-                    playing_slot_index = song.view.selected_track.playing_slot_index
-                    if (playing_slot_index > -1):
-                        song.view.selected_scene = song.scenes[playing_slot_index]
-                        if song.view.highlighted_clip_slot.has_clip:
-                            self.application().view.show_view('Detail/Clip')
-                self._show_playing_clip_ticks_delay -= 1
+        # The pending delay first: this runs on every tick and is almost
+        # always idle.
+        if (self._show_playing_clip_ticks_delay > -1) and self.is_enabled(): # and (not self._shift_pressed):
+            if (self._show_playing_clip_ticks_delay == 0):
+                song = self.song()
+                playing_slot_index = song.view.selected_track.playing_slot_index
+                if (playing_slot_index > -1):
+                    song.view.selected_scene = song.scenes[playing_slot_index]
+                    if song.view.highlighted_clip_slot.has_clip:
+                        self.application().view.show_view('Detail/Clip')
+            self._show_playing_clip_ticks_delay -= 1

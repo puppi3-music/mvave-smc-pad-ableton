@@ -1,159 +1,190 @@
 # Installing the M-Vave SMC-PAD Remote Scripts
 
-Two Remote Scripts that turn the SMC-PAD into a Session-view clip launcher with
-pad LED feedback, plus device macros and session-box navigation on the encoders.
+Three Remote Scripts, one per job:
 
-The pads and the encoders arrive on **different MIDI ports**, and a Remote Script
-gets exactly one input port. That is why there are two scripts and two Control
-Surface slots — `MVave_SMC_PAD` (pads, buttons, LEDs) and `MVave_SMC_KNOBS`
-(encoders). The knob script reaches into the pad script's session component to
-move the red box, so **both must be installed and both slots filled**.
+| Script | Runs |
+|---|---|
+| `MVave_SMC_PAD` | Presets 1 and 3: the clip launcher, its mixer and the scale keyboard. Pads, buttons and pad lights |
+| `MVave_SMC_STEPSEQ` | Preset 2: the step sequencer. Pads, buttons and pad lights |
+| `MVave_SMC_KNOBS` | The knobs on every preset. It also tells the other two to repaint when you switch preset, puts the controller on preset 1 when Live loads, and passes preset 2's drum pads and note repeat to your tracks |
+
+They are separate because a Remote Script gets exactly one MIDI input port,
+and the controller sends its lit pads and its encoders on different ports.
+`MVave_SMC_KNOBS` also reaches into `MVave_SMC_PAD` to move the session box, so
+**install both of those**. `MVave_SMC_STEPSEQ` is needed only for preset 2.
+
+Once it's installed, the user guide, [smc-pad-guide.html](smc-pad-guide.html),
+shows how to use it.
 
 ---
 
-## Requirements
+## Contents
+
+- [Before you start](#before-you-start)
+- [1. Load the presets onto the controller](#1-load-the-presets-onto-the-controller)
+- [2. Copy the scripts into Live](#2-copy-the-scripts-into-live)
+- [3. Restart Live](#3-restart-live)
+- [4. Fill the Control Surface slots](#4-fill-the-control-surface-slots)
+- [5. Set up the remaining port](#5-set-up-the-remaining-port)
+- [Checking it worked](#checking-it-worked)
+- [Troubleshooting](#troubleshooting)
+- [Customising](#customising)
+- [Uninstalling](#uninstalling)
+
+---
+
+## Before you start
 
 | | |
 |---|---|
-| Ableton Live | Any version that ships the classic `_Framework` MIDI Remote Scripts API. **Verified on Live 11.3.43 (Windows)** — see DEVELOPMENT.md §"Verified on hardware". Live 12 is expected to work but is unverified. The step sequencer additionally needs Live 11+ for `get_notes_extended`. |
+| Ableton Live | Live 11 or 12. In daily use on **Live 12.3 (macOS)**; first verified on Live 11.3.43 (Windows), see DEVELOPMENT.md §"Verified on hardware". The step sequencer needs Live 11+ (`get_notes_extended`). The keyboard follows Live 12's Scale setting, and preset 3's knobs use Live 12's parameter banks. |
 | Hardware | M-Vave SMC-PAD, connected by USB. |
-| OS | Windows or macOS. **Everything here was built and tested on Windows only.** The macOS paths below are Live's standard locations, but they have not been verified with these scripts. |
-| Python | None needed. Live runs the scripts with its own interpreter. (The optional probe tool in `tools/` needs Python — see [Finding out what your unit sends](#finding-out-what-your-unit-sends).) |
+| Editor | **MidiSuite**, M-Vave's editor, from [m-vave.com/appdownload](https://www.m-vave.com/appdownload) (Windows, macOS, iOS, Android). It is the only way to write presets to the controller. |
+| OS | Windows or macOS. |
+| Python | None. Live runs the scripts with its own interpreter. Only the optional probe tool needs Python (see [Finding out what your unit sends](#finding-out-what-your-unit-sends)). |
 
-Two known `_Framework` differences across Live versions are already handled in
-the code: missing `ClipSlotComponent` colour setters degrade to plain clip
-launching with a warning in the log, and the `set_parameter_controls` assert
-that demands exactly 8 controls is sidestepped entirely — the pad script calls
-that setter only when all eight slots are assigned (they are not, so it never
-does), and the knob script writes `device.parameters[...]` directly and never
-calls it at all.
+> **MidiSuite, not CubeSuite.** M-Vave ships a second editor called CubeSuite
+> for other products (LooperPro, SMK25, VMK25…), and the SMC-PAD is not in its
+> device list.
 
-### What the scripts expect the device to send
+Nothing here ships, mirrors or depends on MidiSuite, and none of it has been
+tested against a particular version of it.
 
-`MIDI_Map.py` and `MVave_SMC_KNOBS.py` assume this, all on MIDI channel 1:
+---
 
-| Control | Sends |
-|---|---|
-| 16 pads | notes **1–16**, reading order — top-left is 1, bottom-right is 16 — on the **third** port pair (the DAW port), velocity 127 on press and note-on velocity 0 on release |
-| Buttons | note **17** play, **18** stop, **19** record, **20** left arrow, **21** right arrow |
-| Encoders, knob bank 1 | CC **7, 8, 5, 6, 3, 4, 1, 2** across encoders 1–8 — the CC numbers do not follow the printed encoder numbers on this bank |
-| Encoders, knob bank 2 | CC **17, 18, 13, 14, 11, 12, 9, 10** across encoders 1–8 (the sequencer preset sends 15, 16 for the bottom pair instead) |
-| All sixteen | **relative**, centred on 64: 63 is one step back, 65 one step forward |
+## 1. Load the presets onto the controller
 
-This was measured on one unit whose pad bank and transport buttons had been
-configured by hand in the M-Vave editor, and every one of whose sixteen encoder
-assignments had been switched there from absolute to relative. **A factory unit
-will not match**, and neither will this one after any further editor change — the
-encoder numbering has already moved once between measurements. Re-measure with
-`run_probe.bat --knobs` rather than trusting the table above.
-On the measured unit, the eight **PAD BANK** positions of one preset transmitted
-note ranges 1) 4–19, 2) 20–35, 3) 1–16 (the hand-edited one), 4) 52–67,
-5) 68–83, 6) 84–99, 7) 100–115, 8) 52–67. **PAD BANK** cycles those eight banks
-*within* the loaded preset; **Shift+Pad** loads a different preset file
-altogether. The two are easy to confuse and the consequences differ — see
-[HARDWARE.md](HARDWARE.md) §5.
+The scripts expect the note, CC and LED numbers these three files set up. **A
+factory-configured unit sends different numbers, and the scripts will appear
+to do nothing.**
 
-**You need M-Vave's editor to do any of this.** The configuration lives on the
-device, not in these scripts, and the editor is the only thing that writes it.
+In MidiSuite, import each file from `presets/` and write it to its
+preset slot:
 
-For the SMC-PAD that editor is **MidiSuite**, from
-[m-vave.com/appdownload](https://www.m-vave.com/appdownload) — desktop builds
-for **Windows and macOS**, which connect to the unit over the USB data cable,
-plus iOS and Android versions. Checked 2026-09-06: the SMC-PAD is listed among
-MidiSuite's supported devices.
+| File | Slot | Gives you |
+|---|---|---|
+| `preset1-launcher-mixer.spc` | Preset 1 | Clip launcher; PAD BANK → mixer |
+| `preset2-sequencer-drums.spc` | Preset 2 | Step sequencer; PAD BANK → drum pads |
+| `preset3-keys.spc` | Preset 3 | Scale keyboard and device knobs; PAD BANK → key and scale |
 
-> **Not CubeSuite.** M-Vave ships a second editor of that name for a different
-> part of their range (LooperPro, SMK25, VMK25 and so on) and the SMC-PAD is
-> **not** in its device list. `docs/STEPSEQ-BRIEF.md`, the original build brief
-> kept verbatim as history, names CubeSuite — it predates the device being
-> identified and is wrong on this point. MidiSuite is the one.
+On the controller, **Shift + pad 1, 2 or 3** (bottom row, from the left) loads
+that preset. **PAD BANK** is a different thing: it flips between the two pad
+layouts *within* a preset. The five buttons belong to the preset, not to the
+pad layout, so they keep the same job when you press PAD BANK.
 
-Nothing in this repository ships, mirrors or depends on the editor, and none of
-what follows has been tested against any particular version of it.
+Load only from `presets/`. The files in `reference/` are the sources
+`tools/make_presets.py` builds these from and the original editor exports.
 
-**The two presets in `reference/` are this project's configuration, exported.**
-`launchpad.spc` is the clip-launcher preset and `sequencer.spc` the
-step-sequencer one. If your build of MidiSuite can load a `.spc`, load each into
-its own preset slot and write it to the device — by far the shortest route. If
-it cannot, configure by hand from the table above; `docs/HARDWARE.md` §5 decodes
-the format byte by byte, so the files remain the authoritative answer to what
-every number should be.
+**Check it took** before going near Live, if you have the probe set up: run
+`--listen` (see [Finding out what your unit sends](#finding-out-what-your-unit-sends))
+and press the pads. Preset 1 sends notes 1–16, preset 2 notes 101–116, preset 3
+notes 85–100. A factory unit sends none of these.
 
-Configuring by hand, two gotchas make it silently wrong:
+### What the scripts expect the controller to send
 
-- **The editor numbers pads bottom-up**, so its PAD1 is the bottom-left pad and
+All on MIDI channel 1, unless noted. The **LED** column is the number the host
+sends to light that pad, which these presets set apart from the pad's own note.
+A pad whose LED number equals its note shows white when it should be off
+([HARDWARE.md](HARDWARE.md) §5.2).
+
+| Preset · layout | Pads send | Pads light at | Buttons send |
+|---|---|---|---|
+| 1 · clips | notes 1–16, port 3 | LEDs 33–48 | notes 17–21 (play, stop, record, `<`, `>`) |
+| 1 · mixer | notes 49–64, port 3 | LEDs 85–100 | |
+| 2 · steps | notes 101–116, port 3 | LEDs 69–84 | notes 117–121 |
+| 2 · drums | notes 36–51, plain MIDI on ports 1 and 2, velocity-sensitive | unlit | |
+| 3 · keyboard | notes 85–100, port 3 | LEDs 1–16 | notes 17–21 |
+| 3 · key and scale | notes 22–37, port 3 | LEDs 49–64 | |
+
+Pads read left to right, top to bottom: the top-left pad sends the first note
+of the range. Press is note-on velocity 127, release is note-on velocity 0.
+
+The encoders send CCs on ports 1 and 2 (never port 3), and **all sixteen are
+relative**, centred on 64: 63 is one step back, 65 one step forward.
+
+| Encoder | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Presets 1, 2 · knob bank 1 | 7 | 8 | 5 | 6 | 3 | 4 | 1 | 2 |
+| Preset 1 · knob bank 2 | 17 | 18 | 13 | 14 | 11 | 12 | 9 | 10 |
+| Preset 2 · knob bank 2 | 15 | 16 | 13 | 14 | 11 | 12 | 9 | 10 |
+| Preset 3 · knob bank 1 | 27 | 28 | 25 | 26 | 23 | 24 | 21 | 22 |
+| Preset 3 · knob bank 2 | 35 | 36 | 33 | 34 | 31 | 32 | 29 | 30 |
+
+The CC numbers don't follow the printed encoder numbers. That is how this unit
+was configured, and it has moved once already, so re-measure with the probe's
+`--knobs` mode rather than trusting the table.
+
+**Why relative matters.** The knob script decodes every CC as a step. An
+absolute encoder sends a position, which the script would read as a huge step,
+slamming a macro to its limit on the first turn. The session box is worse: it
+is an index the arrows and the mouse also move, so an absolute knob's position
+is out of date the moment anything else moves the box, and the box jumps the
+next time you touch it.
+
+**If you can't load the files**, configure the controller by hand to match the
+tables above. [HARDWARE.md](HARDWARE.md) §5 decodes the `.spc` format byte by
+byte, so the files remain the authoritative answer. Two gotchas make it
+silently wrong:
+
+- **The editor numbers pads bottom-up.** Its PAD1 is the bottom-left pad, so
   PAD13–16 carry the first four notes (HARDWARE.md 5.3).
-- **The five buttons are one set per preset**, not per pad bank (HARDWARE.md
-  2.4) — so they cannot be given different jobs in different PAD BANK positions.
+- **The five buttons are one set per preset**, not per pad layout
+  (HARDWARE.md 2.4).
 
-> **Which preset slot?** It makes no difference to the scripts: the *note
-> ranges* are what tell the two apart, not the slot. What matters is that the
-> two presets sit in **different** slots so you can switch between them. Hold
-> **Shift** and press a pad to load a slot — that is the "preset switch" the
-> rest of these docs and [STEPSEQ.md](STEPSEQ.md) mean by the mode switch.
-> Write down which pad you used for which preset; nothing on the device tells
-> you afterwards.
+Or change the numbers in the scripts to match your controller instead: see
+[Customising](#customising).
 
-**Confirm it took** before going anywhere near Live: run
-`run_probe.bat --listen` (see [PROBE.md](PROBE.md) for setup) and press the
-pads. The launcher preset sends notes 1–16, the sequencer preset 101–116. A
-factory unit sends neither, which is exactly the "appears to do nothing" state
-the README warns about.
+### Finding out what your unit sends
 
-So before you start, either configure the device in the M-Vave editor to match
-the table, or change the numbers in `MIDI_Map.py` to match your device — see
-[Customising](#customising). **All sixteen encoders must be relative**
-whichever way you go — the macro knobs are decoded as deltas too
-(`decode_relative` in `MVave_SMC_KNOBS.py`), so an absolute macro encoder applies
-its position as an increment and slams the macro to a limit on the first turn.
-For the two navigation encoders the reason is sharper still: an absolute encoder
-sends a position, and the session box is an index the arrows and the mouse also
-move, so an absolute counter desyncs and the box teleports the next time you
-touch the knob.
-
-#### Finding out what your unit sends
-
-`tools/mvave_probe.py` logs everything the device transmits and can light pads,
-without installing a Remote Script:
+`tools/mvave_probe.py` logs everything the controller sends and can light
+pads, without any Remote Script. On Windows, `tools/run_probe.bat` sets it up
+on first run:
 
 ```
-run_probe.bat --list                            # enumerate ports
-run_probe.bat --listen --port "MIDIIN3"         # log notes and CCs, with a summary
+run_probe.bat --list                            # list the ports
+run_probe.bat --listen --port "SMC-PAD"         # log notes and CCs on all three ports
 run_probe.bat --knobs  --port "SMC-PAD 0"       # map every encoder to its CC, one at a time
-run_probe.bat --clear  --port "MIDIOUT3"        # extinguish every pad
+run_probe.bat --clear  --port "MIDIOUT3"        # turn every pad off
 ```
 
-The `.bat` is Windows-only and builds its own venv on first run. On macOS and
-Linux there is no launcher — set the probe up once, then call it directly:
+**Windows MIDI ports are exclusive.** Close Live, or untick the port in
+Live's preferences, before running the probe, or it cannot open the port.
+`SMC-PAD` matches all three Windows port names, so modes other than `--listen`
+need the trailing index: `"SMC-PAD 0"`.
+
+On macOS and Linux there is no launcher. Set the probe up once, then call it
+directly. CoreMIDI and ALSA ports can be shared, so Live can stay open:
 
 ```
 python3 -m venv venv-midi
 ./venv-midi/bin/pip install -r tools/requirements-midi.txt
 ./venv-midi/bin/python tools/mvave_probe.py --list
+./venv-midi/bin/python tools/mvave_probe.py --listen --port "SINCO"
 ```
 
-Full setup and every mode is in **[PROBE.md](PROBE.md)**. (Untested on macOS —
-the commands are standard, the device behaviour is not verified there.)
-Port names need the trailing index to disambiguate, because `SMC-PAD` is a
-substring of all three Windows port names — use `"SMC-PAD 0"`.
-
-**Windows MIDI ports are exclusive.** Close Live, or untick the port in
-Preferences, before running the probe, or it cannot open the port.
+Every mode is described in **[PROBE.md](PROBE.md)**. The probe was written and
+tested on Windows; on macOS the commands are standard, but the probe itself
+hasn't been run there.
 
 ---
 
-## Installation
+## 2. Copy the scripts into Live
 
-### 1. Copy both folders into Live's Remote Scripts directory
+Copy the folders themselves (`MVave_SMC_PAD`, `MVave_SMC_KNOBS` and
+`MVave_SMC_STEPSEQ`), not their contents, and don't nest them a level deeper.
+Live scans only the direct subfolders of this directory, and each must keep
+its `__init__.py`. The result should look like
+`…/Remote Scripts/MVave_SMC_PAD/__init__.py`. Replace any older copies.
 
-Copy the folders themselves — `MVave_SMC_PAD` and `MVave_SMC_KNOBS`, plus
-`MVave_SMC_STEPSEQ` if you want the step sequencer — not their contents, and do not
-nest them one level deeper. Live scans the direct subfolders of this directory,
-and each subfolder must keep its `__init__.py`.
-The result should look like `…/Remote Scripts/MVave_SMC_PAD/__init__.py`.
+Prefer the user location. The application folder belongs to the installer, and
+a Live update can overwrite it.
 
-There are two possible destinations. Prefer the user location: the application
-folder belongs to the installer, and a Live update can overwrite it.
+**macOS**
+
+| | Path |
+|---|---|
+| User | `<User Library>/Remote Scripts/`. `<User Library>` is the folder set in Live's Settings → Library. The default is `~/Music/Ableton/User Library`; a shared install may use `/Users/Shared/Ableton/User Library` |
+| Application | `/Applications/Ableton Live <version>.app/Contents/App-Resources/MIDI Remote Scripts/`. Right-click the app and choose Show Package Contents to get in |
 
 **Windows**
 
@@ -162,287 +193,263 @@ folder belongs to the installer, and a Live update can overwrite it.
 | User | `%APPDATA%\Ableton\Live <version>\Preferences\User Remote Scripts\` |
 | Application | `C:\ProgramData\Ableton\Live <version>\Resources\MIDI Remote Scripts\` |
 
-**macOS** (standard Live locations, not verified with these scripts)
-
-| | Path |
-|---|---|
-| User | `~/Music/Ableton/User Library/Remote Scripts/` |
-| Application | `/Applications/Ableton Live <version>.app/Contents/App-Resources/MIDI Remote Scripts/` — right-click the app and choose Show Package Contents to get in |
-
 `<version>` is the exact installed version and **varies per install** (`Live 12`,
-`Live 12.1.5`, `Live 11.3.21`, …). Don't type it from memory; open the parent
-folder and use whichever version folder is actually there. If you already have
-another custom script installed, put these next to it.
+`Live 12.1.5`, `Live 11.3.21`, …). Open the parent folder and use the version
+folder that is actually there. If you already have another custom script
+installed, put these next to it.
 
-### 2. Restart Live
+## 3. Restart Live
 
 Live scans the Remote Scripts directory **only at startup**. Until you restart,
-the scripts will not appear in the Control Surface dropdown. The same applies
-after any later edit to a `.py` file — an edit does nothing until Live is
-restarted.
+the scripts won't appear in the Control Surface menu. The same applies after
+any later edit to a `.py` file.
 
-### 3. Fill the two Control Surface slots
+## 4. Fill the Control Surface slots
 
-Preferences → **Link, Tempo & MIDI** → the Control Surface table at the top. Slot
-order does not matter; the numbering below is just for reference.
+Open Live's **Settings → Link, Tempo & MIDI** (called Preferences on Windows
+and in Live 11). Fill three rows of the Control Surface table at the top. Order
+doesn't matter.
 
-| Slot | Control Surface | Input | Output |
-|---|---|---|---|
-| 1 | `MVave_SMC_PAD` | `MIDIIN3 (SMC-PAD)` | `MIDIOUT3 (SMC-PAD)` |
-| 2 | `MVave_SMC_KNOBS` | `SMC-PAD` (the first port) | `None` |
-
-- The **output** on slot 1 is what lights the pads. Set it to `None` and clip
-  launching still works, with no LED feedback at all.
-- Slot 2 needs no output — the encoder script never transmits.
-- Those are the Windows port names. On macOS the names will differ; identify the
-  ports by function instead — the pads appear on the **third** port pair, and the
-  encoders appear **identically on the first two pairs** and never on the third.
-
-> **The step sequencer is a third, optional slot** on `MIDIIN3`/`MIDIOUT3` — the
-> same ports as slot 1, deliberately. The note ranges (1–21 against 101–121) are
-> what keep the two apart, so both can stay loaded and the pad preset switch is
-> the mode switch. Setup is in [STEPSEQ.md](STEPSEQ.md) §6.
->
-> Skip it entirely if you only want the clip launcher — nothing else here
-> depends on it.
-
-### 4. Leave the remaining port unassigned, with Remote on
-
-Leave the second port pair (`MIDIIN2` on Windows) out of every Control Surface
-slot, and tick **Remote** for it in the MIDI Ports list further down the same
-preferences page.
-
-This matters more than it looks. **A Control Surface takes its port away from
-Ctrl+M** — Live disables Track/Sync/Remote for a port as soon as a script claims
-it. Ports 1 and 2 carry identical encoder CCs, same messages, same counts. So the
-script claims port 1 and port 2 stays open for Live's own MIDI mapping. Skip
-this and Ctrl+M mapping from the encoders stops working entirely.
-
-If you already had Ctrl+M mappings arriving on port 1, assigning the knob script
-to that port kills them silently. Remake them on whichever of the two the
-script is **not** using.
-
-> **Check which port the script actually holds.** Ports 1 and 2 carry
-> identical CCs, so either works for the script and the other is left for
-> Ctrl+M — but the docs and your Live preferences can drift apart. The
-> **last** `Midi Remote Scripts` block in `Log.txt` names the input each slot is
-> on. Live appends one block per launch, so scroll to the *bottom* of the file:
-> the block at the top is the first session ever recorded, and following it
-> sends you to remake mappings onto the port the script currently holds — the
-> exact failure §4 exists to prevent.
-
-### 5. Both knob banks are in use
-
-**KNOB BANK** switches all eight encoders at once, and each bank has its own CC
-set. Both are now mapped, giving fourteen macros plus navigation:
-
-| Bank | Knobs | Do |
+| Control Surface | Input and output on macOS | Input and output on Windows |
 |---|---|---|
-| 1 | 7, 8, 5, 6, 3, 4, 1, 2 | macros **1–8** |
-| 2 | 7, 8, 5, 6, 3, 4 | macros **9–14** |
-| 2 | 1, 2 | session box across tracks / through scenes |
+| `MVave_SMC_PAD` | `SINCO Port 3` | `MIDIIN3 (SMC-PAD)` / `MIDIOUT3 (SMC-PAD)` |
+| `MVave_SMC_KNOBS` | `SINCO SMC-PAD-Private` | `SMC-PAD` / `SMC-PAD` (the first port) |
+| `MVave_SMC_STEPSEQ` | `SINCO Port 3` | `MIDIIN3 (SMC-PAD)` / `MIDIOUT3 (SMC-PAD)` |
 
-So there is no bank to select — press KNOB BANK for whichever half of the macros
-you want. Note that bank 1 is **no longer free for Ctrl+M**: the script claims
-CC 1–8, two of which (CC 1 and CC 7) are the mod wheel and channel volume. That
-is harmless while the port belongs to a Control Surface, since Live disables
-Remote on it, but it matters if you ever hand the port back.
+If your port names differ, identify the ports by what they carry. The lit pads
+and the buttons appear on the **third** port. The encoders appear
+**identically on the first two** and never on the third.
+
+**Set the outputs too.** They are not optional extras:
+
+- `MVave_SMC_PAD`'s and `MVave_SMC_STEPSEQ`'s output lights the pads. With
+  `None`, clips still launch and steps still toggle, but nothing lights.
+- `MVave_SMC_KNOBS`'s output asks the controller which preset and PAD BANK are
+  up, about five times a second, so the pads repaint as soon as you switch
+  (HARDWARE.md 3.6). It also puts the controller on preset 1 when Live loads,
+  and is how the step sequencer learns the VELOCITY setting. With `None` the
+  script can't ask, the controller stays on whatever preset it was left on, and
+  the lights repaint late or not at all. (Whether the controller ever reports a
+  switch unprompted is unsettled; HARDWARE.md 3.6 has captures both ways.)
+
+`MVave_SMC_PAD` and `MVave_SMC_STEPSEQ` share port 3 deliberately. Their
+presets use different note and LED numbers, so both stay loaded and switching
+preset on the controller is the mode switch. Skip `MVave_SMC_STEPSEQ` if you
+don't use preset 2.
+
+## 5. Set up the remaining port
+
+In the **MIDI Ports** list further down the same page, find the second port
+(`SINCO SMC-PAD-Master` on macOS, `MIDIIN2 (SMC-PAD)` on Windows). Leave it out
+of every Control Surface slot, and:
+
+- switch **Remote on**, so Ctrl+M (Cmd+M on macOS) mapping from the encoders
+  still works;
+- leave **Track off**. Preset 2's drum pads and note repeat reach your tracks
+  through `MVave_SMC_KNOBS` instead. With Track on they would play twice, and
+  note repeat on the keyboard would play the pads' raw notes, ignoring the key.
+
+**Why this port matters.** A Control Surface takes its port away from Ctrl+M:
+Live turns off Track, Sync and Remote for a port as soon as a script claims
+it. Ports 1 and 2 carry identical encoder CCs, so the knob script claims port 1
+and port 2 stays free for mapping. If you had Ctrl+M mappings arriving on
+port 1 before, installing the knob script kills them silently. Remake them on
+port 2.
+
+> **Check which port the knob script actually holds.** The **last**
+> `Midi Remote Scripts` block in `Log.txt` names the input each slot is on.
+> Live appends one block per launch, so scroll to the *bottom* of the file. The
+> block at the top is the first session ever recorded, and following it would
+> send you to remake mappings on the port the script holds.
 
 ---
 
-## Verifying it worked
+## Checking it worked
 
-`Log.txt` lives at:
+The quickest check is the controller itself. When Live opens, it should switch
+to preset 1 and play a rainbow across the pads for about three seconds, then
+flash pad 1 (bottom-left) white. That shows `MVave_SMC_PAD` and
+`MVave_SMC_KNOBS` are both loaded with their outputs set. Then pads under the
+coloured session box should light orange where a clip sits and green when one
+plays.
 
+For more detail, `Log.txt` is at:
+
+- **macOS:** `~/Library/Preferences/Ableton/Live <version>/Log.txt`
 - **Windows:** `%APPDATA%\Ableton\Live <version>\Preferences\Log.txt`
-- **macOS:** `~/Library/Preferences/Ableton/Live <version>/Log.txt` (standard
-  location, not verified here)
 
-Look for these lines, in this order:
+Look for these lines:
 
 ```
-MVave_SMC_KNOBS: loaded. CC 17/18 navigate; 16 macro CCs 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16.
+MVave_SMC_KNOBS: loaded. CC 17/18 navigate; 16 macro CCs 1,2,...,16; preset 3 CCs 21-36 play device banks (Live bank table, 69 devices).
+MVave_SMC_STEPSEQ: loaded. pads ch 1 notes 101-116, buttons ch 1 notes 117-121.
 MVave_SMC_KNOBS: device -> <device name>
 MVave_SMC_KNOBS: first nav CC -- 17 value 65
 MVave_SMC_KNOBS: first macro CC -- 1 value 65 -> macro 1
+MVave_SMC_KNOBS: first preset 3 knob CC -- 21 value 65 -> slot 1
 ```
 
-| Line | Proves | Appears when |
+| Line | Shows | Appears when |
 |---|---|---|
-| `loaded.` | The knob script was found and constructed. | At startup. |
-| `device -> …` | The macro knobs have a device to point at. | **Only once the selected track changes** — click a track before concluding the macros are broken. |
-| `first nav CC -- 17 value 65` | MIDI is actually reaching the script. | The first time you turn encoder 1 or 2 on bank 2. Logged once only; a knob produces hundreds of messages. |
-| `first macro CC -- …` | A macro knob is reaching the script and resolving to a macro number. | The first time you turn any macro encoder. Logged once only. |
+| `KNOBS: loaded.` | The knob script was found and built. The bracket says whether Live's parameter-bank table was found for preset 3 (`no Live bank table` means Live 11, or a Live without it) | At startup |
+| `STEPSEQ: loaded.` | The sequencer was found and built, and which notes it listens for | At startup |
+| `device -> …` | The macro knobs have a device to control | **Only once the selected track changes.** Click a track before deciding the macros are broken |
+| `first nav CC` | MIDI is reaching the knob script | The first time you turn encoder 1 or 2 on preset 1's knob bank 2. Logged once only |
+| `first macro CC` | A macro knob reaches the script and resolves to a macro | The first turn of any macro knob. Logged once only |
+| `first preset 3 knob CC` | Preset 3's knobs reach the script | The first turn of a knob on preset 3. Logged once only |
 
-The **pad script prints nothing on a clean load** — its only log lines are
-warnings. Verify it by behaviour instead: pads under the red box should light
-orange where a clip sits, green when one plays.
+`MVave_SMC_PAD` prints nothing on a clean load. Its only log lines are
+warnings, so check it by behaviour.
 
 Lines that mean something went wrong:
 
 - `MVave_SMC_KNOBS: cannot import MVave_SMC_PAD (…)` or
-  `MVave_SMC_KNOBS: MVave_SMC_PAD is not loaded -- is it in a Control Surface slot?`
-  — the cross-script lookup failed. Macros still work; navigation does not.
-- `MVave_SMC_KNOBS: could not read the session offsets` — the pad script's
-  session was found but this `_Framework` version exposes its offsets in a way
-  the knob script doesn't recognise.
-- `MVave_SMC_PAD: ClipSlotComponent has no <setter>()` — this `_Framework`
-  version has no such colour setter. Clip launching is unaffected; that one
-  colour state just won't light.
-- A Python traceback naming either module — see
-  [the script fails to load](#the-script-fails-to-load-or-never-appears-in-the-dropdown).
-
----
-
-## The control layout you end up with
-
-| Control | Does |
-|---|---|
-| 16 pads | Launch clips in a **4 × 4** session box: green playing, orange loaded-but-stopped, red-pink recording, bright blue queued, unlit empty |
-| Button 17 | Play |
-| Button 18 | Stop |
-| Button 19 | Record |
-| Arrow 20 / 21 | Select previous / next track |
-| **Bank 1**, encoders 1–8 | Macros **1–8** of the **selected** device (Live's blue hand) |
-| **Bank 2**, encoders 3–8 | Macros **9–14** of the same device |
-| **Bank 2**, encoders 1–2 | Move the session box across tracks / through scenes |
-
-On the sequencer preset, bank 2's bottom pair carries macros **15–16** instead of
-the session box, which the sequencer has no use for.
-
-The macros follow the selection: click a different track and the same knobs
-control that track's device. That is the whole reason for doing it in a script
-rather than with Ctrl+M, which can only ever point at one fixed parameter.
-
-The SHIFT button transmits nothing on any port — the firmware consumes it for
-the Shift+Pad combos. There is no spare modifier on this device.
+  `MVave_SMC_KNOBS: MVave_SMC_PAD is not loaded -- is it in a Control Surface slot?`:
+  the knob script can't find the pad script. Macros still work; moving the
+  session box doesn't.
+- `MVave_SMC_KNOBS: could not read the session offsets`: the pad script was
+  found, but this Live version exposes the session box in a way the knob script
+  doesn't recognise.
+- `MVave_SMC_PAD: ClipSlotComponent has no <setter>()`: this Live version lacks
+  one of the clip-colour setters. Clips still launch; that one state just won't
+  light.
+- `exception in …`, or a Python traceback naming one of the scripts: see
+  [The script fails to load](#the-script-fails-to-load-or-never-appears-in-the-menu).
 
 ---
 
 ## Troubleshooting
 
-### Nothing happens at all — no clips launch, no LEDs
+The user guide has quick fixes for everyday problems (wrong preset, pads dark
+in the launcher, no sound). These are the setup problems.
 
-- **Live wasn't restarted after copying.** Scripts are picked up at startup only.
-  Restart and check the dropdown lists both scripts.
-- **Wrong port in the slot.** The pads are on the third port pair. If the slot
-  input is the first or second pair, the script sees encoder CCs and no notes.
-- **The device is on the wrong pad preset**, sending notes other than 1–16.
-  Confirm with `run_probe.bat --listen` (close Live first — the port is
-  exclusive), then fix it in the M-Vave editor or in `MIDI_Map.py`.
+### Nothing happens at all: no clips launch, no lights
+
+- **Live wasn't restarted after copying.** Scripts are picked up at startup
+  only. Restart and check the Control Surface menu lists the scripts.
+- **Wrong port in the slot.** The pads are on the third port. On the first or
+  second, the script sees encoder CCs and no notes.
+- **The controller doesn't have this project's presets**, so it sends other
+  notes. Check with the probe's `--listen` mode, then load the files
+  ([step 1](#1-load-the-presets-onto-the-controller)).
 - **The folders landed one level too deep**, e.g.
   `Remote Scripts/mvave-smc-pad-ableton/MVave_SMC_PAD/`. Live only scans direct
   children.
 
-### Pads work but the macro knobs do nothing
+### Pads launch the wrong clips, or empty pads stay white
+
+If every pad fires the clip three pads along and the last pads stay white, the
+controller holds a preset built before 8 October 2026, which put the pads in
+the wrong place in the file. Import all three files from `presets/`
+again.
+
+A pad that shows white when it should be off means its LED number equals its
+note, which only happens with a preset that wasn't built by
+`tools/make_presets.py`. Load the files from `presets/`.
+
+### Pads keep the old preset's colours after a switch
+
+The controller doesn't clear the pads when you switch preset or press PAD BANK.
+`MVave_SMC_KNOBS` notices the switch and makes the scripts repaint. If they
+don't:
+
+- **`MVave_SMC_KNOBS`'s output is `None`.** It can't ask the controller which
+  preset is up. Set the output to the same port as its input.
+- **`MVave_SMC_KNOBS` isn't loaded, or its input isn't the first port.** Check
+  for its `loaded.` line in `Log.txt`.
+
+### The macro knobs do nothing, or move the wrong macro
 
 - **You are on the other knob bank.** KNOB BANK switches all eight encoders at
   once and the two banks carry different macros, so a knob you expect to move
-  macro 3 moves macro 11 instead. Note that this makes a knob move the *wrong*
-  thing, not nothing — see *One knob appears dead* below if it does nothing at
-  all.
-- **The device has fewer macros than the knob you turned.** Bank 2's top six are
-  macros 9–14, which an eight-macro rack simply does not have. `Log.txt` names
-  the device and the macro, once.
-- **Slot 2 is empty or on the wrong port.** `MVave_SMC_KNOBS` needs the *first*
-  port pair as input. Check for the `MVave_SMC_KNOBS: loaded.` line in `Log.txt`;
-  no line means the script never constructed.
-- **No device is selected yet** — see the next entry.
-- **The selected track has no device.** The blue hand needs something to hold.
-
-### The macros only start working after you click a track
-
-Expected. `DeviceComponent` is only handed a device when the **selected track
-changes**, so after a fresh load the knobs do nothing until you click a track.
-Click any track once after starting Live. The `device -> …` line in
-`Log.txt` appears at that same moment, which is why its absence at startup is
-not a fault.
-
-### Pads stay stuck lit
-
-The device ignores real note-offs (`0x80`) — a pad is extinguished by a note-on
-with **velocity 0**, not by a note-off. Live's `_Framework` sends the right thing
-while the script is running, but the LEDs simply hold their last value if the
-script goes away: Live closed while pads were lit, the slot set to `None`, or a
-crash.
-
-Fix, Windows: `run_probe.bat --clear --port "MIDIOUT3"` — with Live closed, since
-Windows MIDI ports are exclusive. macOS/Linux:
-`./venv-midi/bin/python tools/mvave_probe.py --clear --port <your output port>`,
-and you do **not** need to close Live; CoreMIDI and ALSA ports are multi-client. Sending a note-off from anywhere will not clear them.
-
-### One knob appears dead
-
-**The wrong knob bank moves a _different_ macro, not nothing.** Both banks are
-mapped now, so a knob that does nothing at all is a different fault: check the
-device's macro count (a rack with eight macros has nothing for bank 2's top six
-to drive — `Log.txt` names the device and the macro, once per pair, so a
-six-knob shortfall is six lines), then `run_probe.bat --knobs`.
-Historically, when one bank was unassigned, the wrong bank *was* the usual
-cause.
-
-If it is dead on bank 2 as well, its CC may not match the map — verify with
-`run_probe.bat --knobs`, which reports each encoder separately and names silent
-knobs and CC clashes.
+  macro 3 moves macro 11 instead.
+- **No device is selected yet.** After a fresh start the knobs do nothing until
+  the selected track changes. Click any track once. The `device -> …` line in
+  `Log.txt` appears at that moment.
+- **The selected track has no device**, or **the device has fewer macros than
+  the knob you turned.** Bank 2's knobs reach macros 9–16, which an eight-macro
+  rack doesn't have.
+- **`MVave_SMC_KNOBS` is missing or on the wrong port.** It needs the *first*
+  port as input. No `loaded.` line in `Log.txt` means it was never built.
+- **One knob is dead on both banks.** Its CC may not match the map. Run the
+  probe's `--knobs` mode, which reports each encoder separately and names
+  silent knobs and CC clashes.
 
 ### The session box jumps to one end when you turn bank 2's encoder 1 or 2
 
-- **`ENCODER_MODE` is set to the wrong convention.** If the encoder is already
-  relative in the editor and the box still slams to one end, it is sending the
-  other relative convention: one click decodes as ±63. Set
-  `ENCODER_MODE = 'twos'` in `MVave_SMC_KNOBS/MVave_SMC_KNOBS.py` (or back to
-  `'centre'`) and restart Live. `run_probe.bat --knobs` names which one your
-  unit sends.
-- **Or the encoder is still absolute** — the original cause, below.
+- **The encoder is absolute.** It sends a position, not a step. Switch CC 17
+  and 18 to relative in MidiSuite (63 one back, 65 one forward), or load
+  `preset1-launcher-mixer.spc`, which already has them relative.
+- **It is relative, but the other convention.** Some encoders send 127 for one
+  step back and 1 for one forward, which this script would read as ±63. Set
+  `ENCODER_MODE = 'twos'` in `MVave_SMC_KNOBS/MVave_SMC_KNOBS.py` and restart
+  Live. The probe's `--knobs` mode names the convention your unit sends.
 
-That encoder is still **absolute**. It transmits a position, not a step, so the
-first message after the box has moved by any other means slams it to wherever the
-knob's counter happens to be. Switch CC 17 and 18 to relative in the M-Vave
-editor (63 = one back, 65 = one forward, centred on 64).
+### Drum pads or note repeat play twice, or note repeat ignores the key
+
+Track is on for the second port. Switch it off ([step 5](#5-set-up-the-remaining-port)).
+
+### Pads stay lit after Live closes
+
+The controller ignores real note-offs: a pad goes dark only on a note-on with
+velocity 0. Live sends the right thing while a script runs, but the pads hold
+their last colour if the script goes away (Live closed, the slot set to `None`,
+or a crash).
+
+Clear them with the probe's `--clear` mode on the third port. On Windows,
+close Live first (`run_probe.bat --clear --port "MIDIOUT3"`). On macOS, Live
+can stay open:
+`./venv-midi/bin/python tools/mvave_probe.py --clear --port "Port 3"`.
 
 ### Ctrl+M mappings stopped working after installing this
 
-A Control Surface disables Track/Sync/Remote on the port it claims. Your
-mappings were arriving on the port the knob script now owns. Remake them on the
-other port — ports 1 and 2 carry identical CCs — and keep Remote ticked there.
+A Control Surface turns off Track, Sync and Remote on the port it claims, and
+your mappings were arriving on the port the knob script now owns. Remake them
+on the second port, with Remote on there ([step 5](#5-set-up-the-remaining-port)).
 
-### The script fails to load, or never appears in the dropdown
+### The script fails to load, or never appears in the menu
 
-- Not restarted, or copied to a Remote Scripts directory belonging to a
-  **different Live version** than the one you launched. Check the `<version>` in
-  the path against the version you are running.
-- A file missing from the copy. Both folders need every `.py` file, including
-  `__init__.py`.
-- A traceback in `Log.txt` naming the module tells you which line failed.
-  Note that an exception inside `__init__` takes the **whole script** down, not
-  just the feature that raised it — a script that loads partially is not a thing.
+- Live wasn't restarted, or the scripts went into the folder of a **different
+  Live version** than the one you launched. Check `<version>` in the path.
+- A file is missing from the copy. Each folder needs every `.py` file,
+  including `__init__.py`.
+- A traceback in `Log.txt` naming the script shows which line failed. An
+  exception while a script starts up takes the **whole script** down, not just
+  the feature that raised it.
 - After any fix, restart Live again.
 
 ### Clip colours are missing or wrong
 
 If `Log.txt` has `ClipSlotComponent has no <setter>()`, that state is
-unsupported in your Live version and nothing can be done from `MIDI_Map.py`.
-Otherwise, the colours are palette indices, not RGB — see below.
+unsupported in your Live version and nothing in `MIDI_Map.py` can fix it.
+Otherwise, the colours are palette numbers, not RGB: see
+[Pad LED colours](#pad-led-colours).
 
 ---
 
 ## Customising
 
+Live must be restarted for any edit to take effect.
+
 ### `MVave_SMC_PAD/MIDI_Map.py`
 
-Everything the pad script maps lives in this one file. `-1` means unassigned, and
-Live must be restarted for any edit to take effect.
+Everything the pad script maps lives in this one file. `-1` means unassigned.
 
 | Constant | Controls |
 |---|---|
-| `CLIPNOTEMAP` | The 4 × 4 grid of pad notes, row by row. Change these to match what your pads transmit. |
-| `TSB_X`, `TSB_Y` | Session box width and height. Must match `CLIPNOTEMAP`'s dimensions. |
-| `PLAY`, `STOP`, `REC` | Transport button notes (17, 18, 19). |
-| `TRACKLEFT`, `TRACKRIGHT` | Arrow button notes (20, 21) — previous / next track. |
+| `CLIPNOTEMAP` | The 4 × 4 grid of pad notes, row by row from the top. Change these to match what your pads send. |
+| `TSB_X`, `TSB_Y` | Session box width and height. Must match `CLIPNOTEMAP`'s size. Keep them equal: see DEVELOPMENT.md, "Known rough edges". |
+| `PAD_LED_OFFSET` | A pad lights at its note plus this (32, so notes 1–16 light LEDs 33–48). Must match the preset. `MIXER_LED_OFFSET`, `KEYS_LEDS` and `SETTINGS_LEDS` do the same for the mixer and the keyboard's two layouts. |
+| `PLAY`, `STOP`, `REC` | Transport button notes (17, 18, 19). `STOP` is handled by the script, so it can double as the device-navigation modifier, and stops Live on release. |
+| `TRACKLEFT`, `TRACKRIGHT` | Arrow button notes (20, 21): previous / next track, or previous / next device while `STOP` is held (`DeviceNav.py`). |
+| `TRACKMUTE`, `TRACKSOLO`, `TRACKREC`, `TRACKSTOP` | The mixer's four rows on PAD BANK (notes 49–64). |
+| `KEYS_*`, `SETTINGS_*` | The keyboard: its notes, MIDI channel, colours and the key/scale pads. |
 | `BUTTONCHANNEL`, `SLIDERCHANNEL` | MIDI channel, 0-based: `0` is channel 1. |
 | `MESSAGETYPE` | `0` for notes, `1` for CCs. |
-| `MODIFIER` | Disabled (`-1`). Set it to a button note and the two arrows bank the session box through **scenes** while it is held, at the cost of that button's normal role. Kept because it is a one-constant change if a second modifier is ever wanted. |
-| Everything else | Standard slots from the generic-controller template this is built on — mixer, sends, scene launch, device banks. Nearly all `-1` here. |
+| `NEW_CLIP_BARS` | Length in bars of the empty clip a pad makes on an empty slot of a MIDI track, like double-clicking the slot (`1`). `0` restores the old press: record if armed, else stop the track. |
+| `INTRO_ENABLED` and the other `INTRO_*` | The startup intro. `INTRO_ENABLED = False` turns it off. `INTRO_COLOUR_TICKS` sets its speed (1 is the fastest that shows every colour; 2 is half speed). |
+| `MODIFIER` | Disabled (`-1`). Set to a button note, the arrows bank the session box through scenes while it is held, at the cost of that button's normal job. |
+| Everything else | Standard slots from the template this is built on: sends, scene launch, device banks. Nearly all `-1`. |
 
 ### Pad LED colours
 
@@ -456,68 +463,62 @@ CLIP_TRIGGERED_PLAY = 21   # queued, waiting for the quantise point
 CLIP_TRIGGERED_REC = 24    # queued to record
 ```
 
-The velocity of a note-on sent **to** the SMC-PAD is a **palette index, not a
-brightness**, and the palette is absolute — a pad configured pure green on the
-device still shows pink, blue and orange when Live sets it. The hue cycles about
-every 13–14 steps, and everything above roughly 64 is the same flat blue, so all
-useful values are low. There is no saturated red; 14 is as close as it gets.
+The velocity of a note-on sent **to** the SMC-PAD picks a colour from a fixed
+palette. It is not a brightness, and it overrides whatever colour the pad was
+given in the editor. Most vivid colours are below 25, and everything from 64
+to 112 is the same flat blue. There is no saturated red; 14 is as close as it
+gets. The full table is in HARDWARE.md §3.2.
 
-Usable anchors: **5** green · **14** red-pink · **15** orange · **21** bright
+Reliable choices: **5** green · **14** red-pink · **15** orange · **21** bright
 blue · **24** light purple · **40** white · **0** off.
 
-14 and 15 are adjacent in the hue cycle. If red-pink and orange prove hard to
-tell apart in use, move `CLIP_STOPPED` to 21 or 24 for much more contrast.
+14 and 15 sit next to each other in the palette. If red-pink and orange are
+hard to tell apart under your lighting, move `CLIP_STOPPED` to 21 or 24.
 
 ### `MVave_SMC_KNOBS/MVave_SMC_KNOBS.py`
 
-The encoder CCs are constants at the top:
+The settings are constants at the top of the file:
 
-- `MACRO_BY_CC` — a dict mapping each of the sixteen CCs to a macro number
-  (fourteen macro knobs on the launcher preset, plus 15–16 on the sequencer
-  preset).
-  Macro *N* is `device.parameters[N]`; index 0 is the device on/off switch, so the
-  numbering needs no offset. Build it in **encoder order**, not numeric CC order,
-  or the macros scatter across the panel.
-- `STEPS_PER_SWEEP = 127.0` — one click moves this fraction of a parameter's
-  range. A rack macro runs 0–127, a range of 127, so one click is one unit and a
-  full sweep is 127 clicks.
-- `CC_TRACK = 17`, `CC_SCENE = 18`, `CENTRE = 64` — the relative navigation
-  encoders (bank 2's bottom pair, launcher preset). The two CCs must differ; a
-  collision makes one axis of the session box unreachable.
-- `ENCODER_MODE = 'centre'` — **which relative convention your encoders use.**
-  `'centre'` is 63 back / 65 forward (what this unit sends); `'twos'` is 127
-  back / 1 forward. The two are mutually ambiguous, so nothing can detect it —
-  it is a setting. `run_probe.bat --knobs` reports which one it saw, in those
-  words. Getting it wrong moves the session box 63 tracks per click, silently.
+- `MACRO_BY_CC`: maps each macro CC to a macro number. Macro *N* is
+  `device.parameters[N]`; index 0 is the device on/off switch, so there is no
+  offset. Write it in **encoder order**, not numeric CC order, or the macros
+  scatter across the panel.
+- `PARAM_BY_CC`: the same for preset 3's CCs 21–36, mapped to slots in Live's
+  parameter banks.
+- `CC_TRACK = 17`, `CC_SCENE = 18`: the session-box encoders (preset 1, knob
+  bank 2, encoders 1 and 2). They must differ.
+- `ENCODER_MODE = 'centre'`: **which relative convention your encoders use.**
+  `'centre'` is 63 back / 65 forward (this unit); `'twos'` is 127 back / 1
+  forward. The two can't be told apart on the wire, so this is a setting. The
+  probe's `--knobs` mode reports which one it saw, in those words.
+- `STEPS_PER_SWEEP = 127.0`: one click moves this fraction of a parameter's
+  range. A rack macro runs 0–127, so one click is one unit.
+- `STARTUP_PRESET`, `STARTUP_BANK`: where the controller goes when Live loads
+  (`0`, `0` = preset 1, PAD BANK off). `None` leaves it where it was.
+- `POLL_TICKS`: how often it asks the controller for its preset (`2` display
+  ticks, about 0.2 s). Each request flashes Live's MIDI indicators.
 
-### One editing gotcha
+### Editing with shell tools
 
-Files in `MVave_SMC_PAD/` have **CRLF line endings**. Line-anchored patterns in
-`sed` and friends silently no-op unless they account for the trailing `\r`.
+The template's files in `MVave_SMC_PAD/` (`Special*Component.py` and
+`__init__.py`) have **CRLF line endings**; everything else is LF. `sed`
+patterns anchored on `$` silently do nothing on CRLF lines.
 
 ---
 
 ## Uninstalling
 
-1. In Live, Preferences → Link, Tempo & MIDI: set **every** Control Surface slot
+1. In Live's Settings → Link, Tempo & MIDI, set every Control Surface slot
    showing `MVave_SMC_PAD`, `MVave_SMC_KNOBS` or `MVave_SMC_STEPSEQ` back to
-   `None`. If you installed the sequencer, that is three slots, and two of them
-   are on the port you are about to hand back.
-2. Delete the folders from the Remote Scripts directory you installed them to
-   (three, if you installed the sequencer):
-
-   ```
-   <remote-scripts-dir>\MVave_SMC_PAD
-   <remote-scripts-dir>\MVave_SMC_KNOBS
-   <remote-scripts-dir>\MVave_SMC_STEPSEQ
-   ```
-
-3. If you had **Mackie Control** in a slot before this, put it back on
-   `MIDIIN3 (SMC-PAD)` / `MIDIOUT3 (SMC-PAD)` to restore the factory DAW-mode pad
-   layout — pads 1–4 select track, 5–8 arm, 9–12 solo, 13–16 mute, with PAD BANK
-   toggling tracks 1–4 / 5–8.
-4. If any pads were left lit, clear them with
-   `run_probe.bat --clear --port "MIDIOUT3"` while Live is closed.
-5. Anything you changed in the **M-Vave editor** lives in the device, not in
-   these files, so none of the above reverses it. Reload a factory preset from
-   the editor if you want the device back as it shipped.
+   `None`.
+2. Delete the three folders from the Remote Scripts directory you copied them
+   to.
+3. If you had **Mackie Control** in a slot before, put it back on the third
+   port (input and output) to restore the factory DAW mode: pads 1–4 select a
+   track, 5–8 arm, 9–12 solo, 13–16 mute, with PAD BANK toggling tracks 1–4 /
+   5–8.
+4. If pads were left lit, clear them with the probe's `--clear` mode
+   ([Pads stay lit](#pads-stay-lit-after-live-closes)).
+5. The presets live on the controller, not in these files, so none of the above
+   changes them. Load a factory preset in MidiSuite if you want the controller
+   back as it shipped.

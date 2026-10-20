@@ -17,8 +17,10 @@ That distinction is load-bearing: several early wrong turns in this project came
 from treating a plausible inference as a fact, and they are recorded below rather
 than quietly fixed.
 
-**Scope.** Windows. None of this has been checked on macOS or Linux; the port
-names at minimum will differ there.
+**Scope.** Measured on Windows up to 2026-10-07, and on macOS since (3.6 and
+5.7 were measured on macOS). On macOS the three ports are `SINCO SMC-PAD-Private`
+(port 1), `SINCO SMC-PAD-Master` (port 2) and `SINCO Port 3`. Linux is
+unchecked.
 
 ---
 
@@ -28,11 +30,11 @@ names at minimum will differ there.
 
 The SMC-PAD enumerates as three independent in/out pairs:
 
-| # | Windows port name | Sends (device → host) | Accepts (host → device) |
-|---|---|---|---|
-| 1 | `SMC-PAD` | encoder CCs, **and MIDI-typed pad notes** | nothing — LEDs do not respond |
-| 2 | `MIDIIN2` / `MIDIOUT2` | identical to port 1 | nothing — LEDs do not respond |
-| 3 | `MIDIIN3` / `MIDIOUT3` | **MCP-typed** pad and button notes | pad LED colours |
+| # | Windows name | macOS name | Sends (device → host) | Accepts (host → device) |
+|---|---|---|---|---|
+| 1 | `SMC-PAD` | `SINCO SMC-PAD-Private` | encoder CCs, **and MIDI-typed pad notes**; the editor protocol (3.6) | the editor protocol only — LEDs do not respond |
+| 2 | `MIDIIN2` / `MIDIOUT2` | `SINCO SMC-PAD-Master` | identical to port 1, bar the editor protocol | nothing — LEDs do not respond |
+| 3 | `MIDIIN3` / `MIDIOUT3` | `SINCO Port 3` | **MCP-typed** pad and button notes | pad and button LED colours |
 
 > **Corrected 2026-08-31.** This table previously said the pads appear only on
 > port 3. They appear on ports 1 and 2 as well, as velocity-sensitive MIDI notes,
@@ -56,13 +58,13 @@ encoders are on ports 1 and 2, and no port carries both.** (Plain-MIDI pad banks
 do reach ports 1 and 2 — see the correction above — but those cannot be lit, so
 they are no use to a clip grid.) An Ableton Remote Script gets exactly one input
 port, so a single script physically cannot see the whole controller. That is why
-this repo ships two scripts.
+this repo has a separate script for the encoders (`MVave_SMC_KNOBS`).
 
 Two further measured details:
 
 - The encoders appear on ports 1 and 2 **identically** — same CC numbers, same
   message counts. Port 2 is a mirror, not a second layer.
-- Encoders never appear on port 3, and in pad preset bank 3 the pads never
+- Encoders never appear on port 3, and with the pads on block 3 (PAD BANK off) they never
   appear on port 1. (Port 1 was watched during the velocity-curve test and
   received nothing at all while pads were being struck.)
 
@@ -165,14 +167,17 @@ rather than what the device sends.
 
 ### 3.1 Velocity is a palette index, not a brightness
 
-Send a note-on to note *n* on `MIDIOUT3` and pad *n* lights. The velocity byte
-selects a **colour from a fixed palette**. It is not brightness, and it is not a
+Send a note-on on port 3 to a pad's **LED number** and that pad lights. The LED
+number is its own byte in the preset (5.2). In the editor's exports it equals
+the note the pad sends, so it looks as if you light a pad by its note; this
+repo's presets move it, because a pad lit at its own note can't be switched off
+(5.2). The velocity byte selects a **colour from a fixed palette**. It is not brightness, and it is not a
 modifier on the pad's configured colour: a pad configured pure green
 (`#00ff00`) in the `.spc` still displays pink, blue and orange when driven with
 the right velocities. **The palette is absolute.**
 
 > The green pad was in `reference/Ableton.spc`, replaced by commit `32d8012`.
-> The two presets shipped today configure bank 3 **magenta** (`#f000f0`), so this
+> The two editor exports configure block 3 **magenta** (`#f000f0`), so this
 > observation cannot be re-run against `reference/` as it stands — see 5.2. The
 > conclusion is unaffected: the point is that the *configured* colour, whatever
 > it is, does not survive a host-driven note-on.
@@ -219,6 +224,62 @@ identification, not specification.
 | 127 | green |
 
 Values between the sampled points above 24 were not walked exhaustively.
+
+#### 3.2.1 The rest of the palette, surveyed 2026-10-20
+
+On macOS, preset 1 bank A, the grid's LEDs (33-48) were lit 16 at a time
+straight from a script, and each batch was photographed with a phone. From the
+second batch on, the bottom row was a reference (14, 5, 21, 24) to correct for
+the camera, which showed everything paler and bluer: 14 came out pink and 40
+(white) lavender. **These are names from photos and one person's eye, so they
+are for ordering colours, not measurements.**
+
+| Velocity | Colour |
+|---|---|
+| 25 | lavender-white |
+| 26 | violet (strong) |
+| 27 | blue-white |
+| 28 | pale pink |
+| 29-30 | pinkish white |
+| 31-32 | pale blue |
+| 33 | white |
+| 34 | pale cyan |
+| 35-39 | periwinkle to blue-violet, pale (38 pale lavender) |
+| 41 | pale blue |
+| 42, 44 | lavender |
+| 43 | pale pink-lavender |
+| 45 | warm white |
+| 46 | yellow |
+| 47 | pale mint-aqua |
+| 48 | pale sky blue |
+| 49, 51 | periwinkle |
+| 50 | light blue |
+| 52 | lavender-violet |
+| 53 | pale periwinkle |
+| 54 | pale lilac |
+| 55 | pale blue |
+| 56 | pink (nearly as deep as 14) |
+| 57 | pale pink |
+| 58 | pale lilac |
+| 59 | apricot |
+| 60 | pale yellow-green |
+| 61 | pale mint |
+| 62 | sky blue (as strong as 21) |
+| 63 | cornflower |
+| 113 | pale lavender |
+| 114-125 | the same as 53-63 and 113, in that order (117 pink, 120 yellow, 123 sky blue, 124 cornflower) |
+
+Seen side by side, some of the 1-24 names in the table above don't hold up:
+**11 is a blue-violet, not light pink**; 4 is a yellow-lime and 46 the truer
+yellow; 7 looks like 20 (cyan-sky); 9 is periwinkle; 1, 17 and 18 are pale. The
+table above is left as first recorded, and `KEYS_OCTAVE_COLOURS` (MIDI_Map.py)
+still uses its names.
+
+Past 24 the palette keeps cycling through the hues, paler each time, and
+114-125 repeat 53-63. So the vivid colours are almost all in 1-24, plus 26,
+46, 56, 59, 62 and 63. The startup intro's `INTRO_RAINBOW` is 18 of these in
+hue order: 14 15 59 46 4 19 5 6 20 62 21 63 9 24 11 26 12 56. That is close
+to the most a smooth rainbow can use: the rest are pale, or duplicates.
 
 **What this means in practice:**
 
@@ -281,6 +342,123 @@ pad 16 being dead; addressed on its own, pad 16 lights fine.
 If you are lighting the whole grid, pace it, or at minimum do not conclude a pad
 is broken from a bulk write.
 
+### 3.6 Pads keep their colour across a preset or PAD BANK switch
+
+Measured 2026-10-08 on macOS. The device does not clear or redraw the pads when
+you switch preset (Shift + pad) or press PAD BANK: each pad keeps the colour it
+last showed. Because lighting a note the active preset does not use does nothing,
+the sequencer came up showing the launcher's clip colours, and a script that only
+sends changes never corrected them.
+
+Nothing arrives on port 3 when you switch. On port 1 the device sends a 33-byte
+status sysex once a second, on a fixed beat. A switch shows up in the next one,
+not when the button is pressed, so it can take up to a second to see:
+
+```
+F0 00 32 0D 21 01 00 00 02 00 00 00 00 40 01 00 00 78 00 48 21 00 00 00 01 00 02 04 [b28] [b29] [b30] [b31] F7
+```
+
+| State | b28 b29 b30 b31 |
+|---|---|
+| preset 1, bank A (launcher) | `00 00 20 0F` |
+| preset 1, bank B (mixer) | `00 10 00 0F` |
+| preset 2, bank A (sequencer) | `08 00 00 0F` |
+| preset 2, bank B (drums) | `08 10 60 0E` |
+| preset 3, bank A (keys) | `10 00 40 0E` |
+
+Byte 28 bit `0x08` is preset 2, bit `0x10` is preset 3 (measured 2026-10-20),
+and byte 29 bit `0x10` is PAD BANK's second bank. Bytes 30-31 change too, but
+not only with the state: on 2026-10-20 preset 1 bank A read `00 00 00 0F` and
+preset 2 bank A `08 00 60 0E`, so they are not a pure function of b28-b29.
+A preset switch also sends the whole preset as 28 sysex messages of 1173
+bytes and one of 88 (`... 21 04 ...`), over ~150 ms. The status keeps coming
+with MidiSuite closed, so nothing on the computer is asking for it.
+
+**Unexplained, 2026-10-20 (later):** in a capture with Live and MidiSuite
+quitting partway, the one-second status continued for ~5 s after Live's polling
+stopped, then everything on all three ports stopped. Preset switches, PAD BANK
+and a velocity change after that produced nothing, not even the dump. Either
+the beat depends on something the host does, or the controller stopped talking
+(a USB drop?). Not repeated. Later the same day, with Live running the
+once-a-second poll and the controller idle for 15 s, exactly one status a
+second arrived, spaced ~1.007 s apart and drifting against the wall clock like
+Live's display ticks. So there was no separate beat from the device then.
+
+**What the device sends by itself waits for the beat.** Measured 2026-10-20
+over three preset switches and two PAD BANK presses: the changed status arrives
+on the next one-second beat, and the preset dump starts 0-5 ms *after* that
+status, never at the moment of the switch. PAD BANK sends no dump at all.
+Nothing on any of the three ports arrives earlier: 0-1 s of lag, about 0.5 s on
+average.
+
+**But the device answers when asked.** The status is a reply to a state read
+from M-Vave's editor protocol, read out of MidiSuite 1.x (`CUSBConnect`,
+`CMIDITranfer`; its `SmcPad::timerEvent` sends this read on a timer):
+
+- On the wire: `F0`, the packet's 8-bit bytes packed 7 bits at a time, low
+  bits first, then `F7`. Every message starts `00 32 0D` because that unpacks
+  to the packet head `00 59`. (So `00 32 0D` is not a manufacturer ID.)
+- A packet is the head `00 59`, a command (`23` = flash read, in both the
+  request and the reply), a 3-byte little-endian length, the payload, and a
+  checksum: the byte sum of the payload, inverted.
+- The state read is type `04`, address 0, 12 bytes. Sent as
+  `F0 00 32 0D 41 00 00 00 02 00 00 00 00 40 01 00 00 6F 01 F7` on
+  `SMC-PAD-Private` only (the other two ports don't answer).
+- The reply is the 33-byte status above. Unpacked: bytes 0-5 are
+  `00 59 23 14 00 00`, 6-13 echo the type, address and count, 14-25 are the
+  12 state bytes, 26 the checksum. **Byte 24 is the preset (0-2), byte 25 the
+  PAD BANK bank (0-1). Byte 22 is the VELOCITY setting (0-3 for Shift + Pad
+  9-12)** (measured 2026-10-20: it stepped 00, 01, 02, 03 as the four were
+  selected, the moment each was pressed). That is why it read `01` on 2026-10-08
+  and `02` earlier on 2026-10-20, and why the raw b30-b31 changed.
+
+Measured 2026-10-20: replies came 0.1-1.4 ms after the request, and polling
+every 50 ms saw all five switches (three presets, two PAD BANK) at moments
+unrelated to the beat. The reply shows a switch the moment it happens.
+
+`MVave_SMC_KNOBS` is the script on port 1, so it watches this message and sends
+the read, which needs its Output set to `SMC-PAD-Private`. Every request and
+reply flashes Live's MIDI indicators, so since 2026-10-20 it asks every ~0.2 s
+(`POLL_TICKS` = 2 display ticks; about 0.35 KB/s on the wire), plus at once when a pad or knob sends something the current
+layout doesn't have. Every layout has its own notes and CCs
+(`LAYOUTS_BY_NOTE` / `LAYOUTS_BY_CC`), so the first touch after a switch gives
+it away; SHIFT and PAD BANK send nothing (6.1), so nothing earlier can. A switch
+repaints the moment you touch a pad or knob, or within ~0.2 s if you don't. For
+~4 s after a switch it asks every tick (`SWITCH_FAST_TICKS`), so quick PAD BANK
+flips show at once.
+Only the transport and arrow buttons (notes 17–21) can't tell preset 1 from 3. When the preset or bank changes, it schedules
+`refresh_state()` on `MVave_SMC_PAD` and `MVave_SMC_STEPSEQ`, a few ticks apart.
+The script that owns the new layout goes last. It also stops these messages
+being logged as "unknown sysex". Without the output there is no read, so it
+depends on the controller sending the status unprompted, which the captures
+above disagree about.
+
+**Writing the state.** Captured 2026-10-20 with MIDI Monitor's spy on
+`SMC-PAD-Private` while MidiSuite changed the preset and PAD BANK. MidiSuite
+writes one byte of the same type-4 block with command `22` (flash write).
+The payload is type `04`, a 4-byte address, a 3-byte count of 1, then the value:
+
+| Change | Address | Sent |
+|---|---|---|
+| preset 2 | `0A` = 1 | `F0 00 32 09 49 00 00 00 02 0A 00 00 00 10 00 00 00 01 5E 03 F7` |
+| preset 1 | `0A` = 0 | `F0 00 32 09 49 00 00 00 02 0A 00 00 00 10 00 00 00 00 60 03 F7` |
+| PAD BANK on (B) | `0B` = 1 | `F0 00 32 09 49 00 00 00 02 0B 00 00 00 10 00 00 00 01 5C 03 F7` |
+| PAD BANK off (A) | `0B` = 0 | `F0 00 32 09 49 00 00 00 02 0B 00 00 00 10 00 00 00 00 5E 03 F7` |
+
+Address `0A` is the reply's byte 24 and `0B` its byte 25, so byte 22 (the
+VELOCITY setting) would be address `08`. That one has not been written. The
+device answers each write within ~1.3 ms with an OK, `F0 00 32 01 08 00 00 00
+00 7F 01 F7` (unpacked: command `00`, one payload byte `00`), and switches at
+once. The same bytes sent from a script did the same (2026-10-20). A Program
+Change on any port or channel switches nothing.
+
+`MVave_SMC_KNOBS` uses this to put the controller on preset 1, PAD BANK off,
+when Live loads (`STARTUP_PRESET` and `STARTUP_BANK`, `None` to turn it off).
+It writes only a byte the first reply shows wrong, one write per reply, at most
+four in all. The first reply after that tells `MVave_SMC_PAD` whether to play
+its startup intro (a rainbow, then a PAD1 flash on LEDs 33-48). The intro only
+shows while preset 1, bank A is up, so it is skipped on any other layout.
+
 ---
 
 ## 4. Encoders
@@ -310,9 +488,20 @@ still on it.
 
 Bank 2's bottom pair is the only thing that differs between the two presets: the
 launcher spends it on session navigation (CC 17/18), the sequencer on macros 15
-and 16. Every CC above is confirmed against `reference/*.spc`, whose sixteen
+and 16. Every CC above is confirmed against `reference/launchpad.spc` and `reference/sequencer.spc`, whose sixteen
 encoder records carry the CC in byte 4 and `63 65` in bytes 5–6 — the relative
 centre-64 encoding, on all sixteen.
+
+**Preset 3 (`preset3-keys.spc`) has its own CCs:** relative like the rest, but
+CC 21–36 (bank 1, encoders 1–8: 27, 28, 25, 26, 23, 24, 21, 22; bank 2 the same
++ 8), so `MVave_SMC_KNOBS` can tell them apart and play the selected device's
+parameter banks with them (README, keyboard preset). Before 2026-10-20 they were
+absolute standard synth CCs (74, 71…) passed to the track. That did nothing on
+Live's built-in instruments, which ignore CCs. The first build of it also kept
+type 3 and only changed bytes 5–6 to `00 7f`, guessing they were a range;
+measured, every knob then sent **0 one way and 127 the other**, because under
+type 3 those bytes are the values sent per left/right click. With type 0
+(section 5) the same knobs swept smoothly through 0–127.
 
 **None of this is a property of the hardware.** The same unit measured 2026-08-03
 read bank 1 as CC 1–8 ascending and bank 2 as CC 44, 45, 42, 43, 40, 41, 38, 39 —
@@ -382,12 +571,14 @@ depending on a `MapMode` constant whose name varies by host version.
 ## 5. The `.spc` configuration file
 
 > **One file is one preset.** Confirmed 2026-09-01 by decoding the two exported
-> presets in `reference/` side by side: both are 3539 bytes and **41 bytes
-> differ** — five button notes plus two of their mirrored tails, two encoder CCs,
-> and sixteen pad notes plus all sixteen of their tails (7 + 2 + 32 = 41). The
-> tail mirroring is described in 5.2; nothing else moves. A preset holds 5 buttons, 2 knob banks of 8 encoders,
-> and 8 pad banks of 16 pads; **PAD BANK** moves within those 8, **Shift+Pad**
-> loads a different file.
+> presets in `reference/` (`launchpad.spc`, `sequencer.spc`) side by side: both are 3539 bytes and
+> **41 bytes differ** — five button notes plus two of their mirrored tails, two
+> encoder CCs, and sixteen pad notes plus all sixteen of their tails
+> (7 + 2 + 32 = 41). The tail mirroring is described in 5.2; nothing else
+> moves. A preset holds 5 buttons, 2 knob banks of 8 encoders, and 128 pad
+> records, which read naturally as 8 blocks of 16. **PAD BANK uses only two of
+> those blocks** (measured 2026-10-07, see 5.2). **Shift+Pad** loads a
+> different file.
 >
 > Both files agree with every **note** constant the scripts use — `CLIPNOTEMAP`
 > 1–16, `PLAY`/`STOP`/`REC` 17–19, `TRACKLEFT`/`RIGHT` 20–21, `PAD_NOTES`
@@ -431,7 +622,7 @@ whether the arithmetic closes.
 |---|---|---|---|
 | `@0` | 5 | 23 B | the five buttons |
 | `@115` | 16 | 6 B | continuous controls (encoders) |
-| `@211` | 128 | 26 B | pads — 8 banks x 16 |
+| `@211` | 128 | 26 B | pads — 8 blocks x 16, of which PAD BANK uses two |
 
 **Section 1 — the five buttons, `@0`, 5 x 23 B**
 
@@ -450,14 +641,29 @@ there — `f0 7f 7f 06 0n f7` — but it is **byte-identical in both presets** w
 the notes differ, so it is not what the device sends. Treat it as vestigial until
 something demonstrates otherwise.
 
-The `tail` byte mirrors the note on some records and is `0xff` on others, with no
-pattern established.
+The `tail` byte mirrors the note on some records and is `0xff` on others. In
+both shipped sources it is the note on play and record and `0xff` on stop and
+the two arrows. **Working hypothesis (2026-10-20): it is the button's LED
+number**, the way byte 8 is a pad's, with `0xff` meaning "not host-lit" — the
+sequencer lit stop in its overview and the arrows when a page was available,
+and those stayed dark. `tools/make_presets.py` now writes each preset-2 button's
+own note there (`light_buttons`). Not yet confirmed: re-import preset 2 and see
+whether stop lights in the overview.
 
 **Section 2 — the encoders, `@115`, 16 x 6 B — two knob banks of 8**
 
 ```
-[flag] [type=02] [00] [cc] [min] [max]
+[type] [02] [00] [cc] [data1] [data2]
 ```
+
+Read from MidiSuite's `SmcPad::setKnobData`, which loads the six bytes into six
+widgets in this order, and `SmcPad::knobTypeChange` (2026-10-20). **Type**
+(byte 1) is a combo box: 0 = CC, with data1/data2 labelled *Min*/*Max*
+(absolute); 3 = CC, with data1/data2 relabelled *Left*/*Right*, the values sent
+per counter-clockwise/clockwise click (relative, `3f 41` = 63/65 in every
+shipped record). Types 1 and 2 disable the CC field. Bytes 2 and 3 load into the
+editor's other two fields (speed and channel, by the widget names, though which
+is which wasn't traced); every record has `02 00` there.
 
 Sixteen records for eight physical encoders — two banks of eight. In
 `launchpad.spc` the CC bytes read `7, 8, 5, 6, 3, 4, 1, 2` then
@@ -466,7 +672,7 @@ of bank 2, `15, 16`.
 
 > **Two records measured, the rest inferred.** Nothing in a six-byte record names
 > an encoder, so the record → encoder correspondence cannot be read from one file.
-> But the two presets in `reference/` *are* the single-variable test, already run:
+> But the two editor exports in `reference/` *are* the single-variable test, already run:
 > they differ in exactly two encoder bytes — the CC fields of **records 9 and 10**,
 > 1-based file offsets 167 and 173, where `17→15` and `18→16`. Section 4.1
 > measured those same two CCs as bank 2's encoders 1 and 2, so records 9 and 10
@@ -482,39 +688,62 @@ of bank 2, `15, 16`.
 **Section 3 — pads, `@211`, 128 x 26 B**
 
 ```
-[flag] [type] [note] [chan?] [vel] [r] [g] [b] [tail] [zeros...]
+[flag] [type] [note] [chan?] [vel] [r] [g] [b] [led] [zeros...]
 ```
 
-Two field notes, both checked across all 256 shipped pad records:
+Three field notes:
 
-- **`tail` mirrors `note` on every record whose `flag` is `0x04`, and is
-  `0xff` on every other** — 128/128 in both files. That is the cheapest
-  integrity check the format offers: it catches a note edited in one place
-  and not the other. The button records (section 1 above) do *not* follow
-  this rule, which is why the `tail` sentence there says no pattern.
+- **Byte 8 is the pad's LED number**: the number the host sends a note-on to
+  in order to light that pad (measured 2026-10-07). It is `0xff` on plain-MIDI
+  records, which the host can't light. In both editor exports it mirrors
+  `note` on every record whose `flag` is `0x04` (128/128 in both files), which
+  is why it was first read as a mirrored tail.
+- **A pad whose LED number equals its own note shows white at velocity 0**, so
+  it can never be switched off (measured 2026-10-07). This repo's presets
+  therefore move every lit pad's LED number off its note. `tools/make_presets.py`
+  and the scripts' `MIDI_Map.py` files must agree on these:
+
+  | Layout | Notes | LED numbers |
+  |---|---|---|
+  | preset 1, clips | 1–16 | 33–48 |
+  | preset 1, mixer | 49–64 | 85–100 |
+  | preset 2, steps | 101–116 | 69–84 |
+  | preset 3, keyboard | 85–100 | 1–16 |
+  | preset 3, key and scale | 22–37 | 49–64 |
+
 - **`chan?` is a Hypothesis, not an observation.** Byte 3 is `0x00` in all
   256 records, so these files cannot distinguish "channel, 0-based" from
   "unused padding"; the name comes from section 2.1's measured channel 1.
 
-128 records = **8 banks x 16 pads**, one bank per PAD BANK position — Shift+Pad
-loads a different *file*, as the note at the head of this section says. Measured note
-ranges per bank:
+128 records read as **8 blocks of 16 pads**. The note ranges below are those
+of the editor exports:
 
-| Bank | Notes |
-|---|---|
-| 1 | 4–19 |
-| 2 | 20–35 |
-| 3 | **1–16** |
-| 4 | 52–67 |
-| 5 | 68–83 |
-| 6 | 84–99 |
-| 7 | 100–115 |
-| 8 | 52–67 |
+| Block | Records | Notes | Used by |
+|---|---|---|---|
+| 1 | 0–15 | 4–19 | — |
+| 2 | 16–31 | 20–35 | — |
+| 3 | 32–47 | **1–16** | **PAD BANK off** (bank A) |
+| 4 | 48–63 | 52–67 | **PAD BANK on** (bank B) |
+| 5 | 64–79 | 68–83 | — |
+| 6 | 80–95 | 84–99 | — |
+| 7 | 96–111 | 100–115 | — |
+| 8 | 112–127 | 52–67 | unclear: same notes as block 4 |
 
-Bank 3 is the hand-edited one and the bank port 3 plays back. In the two shipped
-presets its pads are configured **`#f000f0` magenta** (bytes 5–7 = `f0 00 f0` on
-all 16 records of both files), with notes 1–16 in `launchpad.spc` and 101–116 in
-`sequencer.spc`.
+**PAD BANK has two positions, not eight** (measured 2026-10-07). It flips
+between block 3 and block 4. Blocks 4 and 8 hold the same factory notes and
+one measurement can't tell them apart, so `tools/make_presets.py` writes the
+second layout to both. Shift+Pad loads a different *file*, as the note at the
+head of this section says.
+
+This section once assumed eight PAD BANK positions, one per block. A first
+measurement also put bank A at records 29–44. Presets built that way played
+every pad's neighbour three along once imported, with the last three pads stuck
+white. The sources were moved to 32–47 on 2026-10-08, where M-Vave's own export
+keeps it. The old 29–44 sources are no longer kept.
+
+In the two editor exports, block 3's pads are configured **`#f000f0` magenta**
+(bytes 5–7 = `f0 00 f0` on all 16 records of both files), with notes 1–16 in
+`launchpad.spc` and 101–116 in `sequencer.spc`.
 
 > **Historical note.** Section 3.1's argument uses a pad configured `#00ff00`
 > pure green that still displayed pink. That observation was made on
@@ -526,7 +755,7 @@ all 16 records of both files), with notes 1–16 in `launchpad.spc` and 101–11
 
 ### 5.3 The device numbers its pads bottom-up
 
-**PAD1 is bottom-left. PAD13 is top-left.** Read bank 3's records in that
+**PAD1 is bottom-left. PAD13 is top-left.** Read block 3's records in that
 bottom-up order and they yield notes 1–16 in *reading* order from the top-left —
 which is precisely what the probe measured on port 3, inversion and all,
 sixteen out of sixteen.
@@ -536,14 +765,14 @@ calls PAD1 is not the pad in the top-left corner.
 
 ### 5.4 Why the pads always transmit velocity 127
 
-Every record in bank 3 carries `vel = 0x7f`. It is a **fixed velocity byte, not a
+Every record in block 3 carries `vel = 0x7f`. It is a **fixed velocity byte, not a
 curve**, which is why every strike reports 127 and why the VELOCITY settings do
 nothing to it (section 6.2).
 
 ### 5.5 Two traps in reading this format
 
 **A `0x00` in the `type` byte does not mean "pad disabled."** In the pre-`32d8012`
-`reference/Ableton.spc`, two bank-3 records carried `0x00` there where the rest
+`reference/Ableton.spc`, two block-3 records carried `0x00` there where the rest
 had `0x09` (0-based offsets 1278 and 1356 — PAD10 → note 6 and PAD13 → note 1).
 That was read as "these two pads transmit nothing" and produced a confident,
 wrong prediction. Both fired normally. Whatever the byte means, it is not an
@@ -560,7 +789,7 @@ map. Reading either artifact in isolation produces nonsense.
 
 ### 5.6 The flag byte
 
-Bank 3's `flag` byte is `0x04`. All seven factory banks have `0x00`.
+Block 3's `flag` byte is `0x04`. All seven factory blocks have `0x00`.
 
 > **Superseded 2026-08-31.** This section previously proposed the flag byte as an
 > **output-port selector**, on two consistent observations and no experiment. That
@@ -588,6 +817,19 @@ Bank 3's `flag` byte is `0x04`. All seven factory banks have `0x00`.
 
 ---
 
+### 5.7 Note repeat bypasses the pad's port
+
+Measured 2026-10-17 on preset 3, PAD1 (MCP, note 85, port 3), with all three
+ports watched. A normal tap arrives on port 3 as note 85, channel 1, velocity
+127, as configured. With note repeat on, holding the pad sends **nothing on
+port 3**: the firmware sends the repeats on **ports 1 and 2** as plain MIDI,
+**channel 10**, the pad's own note (85), at about 8 per second, note-on velocity
+10–15 and note-off velocity 64. So repeats ignore the pad's type, port and
+channel, and anything a host script does to port 3's notes. This repo turns
+Track off on port 2 and has `MVave_SMC_KNOBS` translate them (README, "Plain
+MIDI goes through MVave_SMC_KNOBS"). Whether the VELOCITY 1–4 settings change
+the repeat velocity was not measured.
+
 ## 6. SHIFT and the Shift+Pad settings
 
 ### 6.1 SHIFT transmits nothing
@@ -595,6 +837,12 @@ Bank 3's `flag` byte is `0x04`. All seven factory banks have `0x00`.
 Confirmed by listening on all three ports simultaneously. The SHIFT button is
 consumed entirely by the firmware for its Shift+Pad combinations (preset select,
 velocity, transpose, octave).
+
+It has no LED the host can reach either: SHIFT has no record in the preset
+file (section 5.2 lists five buttons, and SHIFT is not one of them), so it has no
+LED number. The startup intro flashes PAD1 alone for that reason. Not
+measured: whether some fixed note lights it. A paced 0-127 sweep on port 3
+while you watch the key would settle it.
 
 **There is no spare modifier button on this device.** Any host-side "hold X to
 change what the other controls do" scheme has to spend one of the five
@@ -612,6 +860,16 @@ at once.
   variation. The fixed `0x7f` velocity byte in the pad bank (section 5.4)
   overrides whatever the setting would otherwise do.
 - None of the four settings changes LED colour.
+
+**Readable by the host (2026-10-20).** The setting is byte 22 of the state
+read's reply (section 3.6), 0-3 for VELOCITY 1-4, updated the moment it is
+selected. `MVave_SMC_KNOBS` passes each change to `MVave_SMC_STEPSEQ`, which
+writes new steps at 40, 70, 100 or 127 (STEPSEQ.md section 9).
+
+On VELOCITY 4, the plain-MIDI drum pads (preset 2, bank B, ports 1 and 2,
+channel 10) sent velocity 127 on every strike, soft or hard, so 4 is
+probably a fixed full velocity. VELOCITY 1-3 have not been measured on those
+pads.
 
 **What was not established: what the settings actually do.** A velocity curve
 would shape the *playing* port's output, and port 1 transmitted nothing at all
@@ -682,14 +940,20 @@ tell which step had gone wrong. Step-by-step, it produced a clean 16 of 16.
 
 Collected so nobody re-derives them as facts:
 
-1. **What VELOCITY 1–4 do.** Blocked on port 1 being silent in the pad preset
-   bank used here (6.2).
-2. **Whether the `.spc` flag byte selects the output port.** Two consistent
-   observations, no experiment (5.6).
+1. **What VELOCITY 1–3 do** to the velocity-sensitive drum pads. VELOCITY 4
+   sends a fixed 127 there; the setting itself is readable (6.2).
+2. **Whether the assignment type is what sets port, velocity and lighting
+   together.** The leading explanation, with the experiment designed and not
+   run (5.6).
 3. **Whether notes 17–21 for the five buttons are a factory default** or the
    result of prior configuration on the device (2.4).
 4. **The full velocity→colour mapping above 24.** Sampled, not walked
    exhaustively (3.2).
 5. **The meaning of the pad record's `type` byte** (`0x09` vs `0x00`). Known not
    to be an enable flag; nothing more (5.5).
-6. **Any of this on macOS or Linux.** Not tested.
+6. **Any of this on Linux.** Not tested. On macOS, the scripts and the
+   later measurements run; the Windows-era measurements were not repeated there.
+7. **Whether a button record's last byte is its LED number**, and whether the
+   button LEDs take the palette or are only on/off (5.2).
+8. **Whether the controller sends its status unprompted.** One capture saw a
+   once-a-second status with nothing asking; a later one saw none (3.6).

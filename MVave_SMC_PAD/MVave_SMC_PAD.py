@@ -1,5 +1,6 @@
 from __future__ import with_statement
 
+import sys
 import traceback
 
 import Live
@@ -17,12 +18,55 @@ from .SpecialTransportComponent import SpecialTransportComponent
 from .SpecialSessionComponent import SpecialSessionComponent
 from .SpecialZoomingComponent import SpecialZoomingComponent
 from .SpecialViewControllerComponent import DetailViewControllerComponent
+from .DeviceNav import device_list, step, track_list
+from .KeysMode import KeysMode
+from .StartupIntro import StartupIntro
 from .MIDI_Map import *
 
 
 # MIDI_NOTE_TYPE = 0
 # MIDI_CC_TYPE = 1
 # MIDI_PB_TYPE = 2
+
+
+def _tell_knobs(midi_bytes):
+    # Hands MVave_SMC_KNOBS each message, so a press from another preset's
+    # layout makes it check for a switch at once (its LAYOUTS_BY_NOTE).
+    # Optional: a dict lookup when the knobs script isn't loaded.
+    module = sys.modules.get('MVave_SMC_KNOBS.MVave_SMC_KNOBS')
+    if module is None:
+        return
+    for knobs in getattr(module.MVave_SMC_KNOBS, '_active_instances', None) or ():
+        knobs.port3_message(midi_bytes)
+
+
+class LedRemapButton(ButtonElement):
+    """A button that listens on one note and sends its LED feedback to another.
+
+    _Framework always sends feedback to the button's own identifier. Rather
+    than rebuild the outgoing message, the identifier is swapped for the
+    duration of the base class's send, so status byte, channel and send cache
+    all stay the framework's own.
+
+    on_value, when given, replaces every non-zero value sent: the mixer's
+    strips only ever say "lit" (127, which this palette shows as green), so
+    this is where each mixer row gets its own colour.
+    """
+
+    def __init__(self, is_momentary, msg_type, channel, identifier, led_identifier, on_value=None):
+        ButtonElement.__init__(self, is_momentary, msg_type, channel, identifier)
+        self._led_identifier = led_identifier
+        self._on_value = on_value
+
+    def _do_send_value(self, value, channel=None):
+        if self._on_value is not None and value:
+            value = self._on_value
+        identifier = self._original_identifier
+        self._original_identifier = self._led_identifier
+        try:
+            ButtonElement._do_send_value(self, value, channel)
+        finally:
+            self._original_identifier = identifier
 
 
 class MVave_SMC_PAD(ControlSurface):
@@ -44,6 +88,8 @@ class MVave_SMC_PAD(ControlSurface):
         # before the next line returns and _log_exception must not itself
         # raise on a missing attribute.
         self._exceptions_logged = set()
+        # Here for the same reason: refresh_state repaints it.
+        self._intro = StartupIntro(self)
         ControlSurface.__init__(self, c_instance)
         # self.set_suppress_rebuild_requests(True)
         with self.component_guard():
@@ -55,20 +101,43 @@ class MVave_SMC_PAD(ControlSurface):
             self._mixer = None
             self._missing_clip_setters = []
             self._modifier_button = None
+            self._stop_held = False
+            self._stop_combo = False
+            self._nav_listeners = []
+            self._keys_mode = None
             self._setup_session_control()
             self._setup_mixer_control()
             self._session.set_mixer(self._mixer)
             self._setup_device_and_transport_control()
+            self._setup_stop_and_arrows()
+            self._setup_keys()
             self.set_highlighting_session_component(self._session)
             # self.set_suppress_rebuild_requests(False)
         self._pads = []
         self._load_pad_translations()
         self._do_combine()
+        # In case MVave_SMC_KNOBS never says the controller is on preset 1.
+        self.schedule_message(INTRO_FALLBACK_TICKS, self.play_intro)
+
+    def play_intro(self, show=True):
+        # Called by MVave_SMC_KNOBS with the controller's first status: show
+        # is False when it is on another layout. Once only (StartupIntro).
+        try:
+            self._intro.play(show is not False)
+        except Exception:
+            self._log_exception('startup intro')
 
     def disconnect(self):
+        self._intro.disconnect()
         if self._modifier_button is not None:
             self._modifier_button.remove_value_listener(self._modifier_value)
             self._modifier_button = None
+        for button, listener in self._nav_listeners:
+            button.remove_value_listener(listener)
+        self._nav_listeners = []
+        if self._keys_mode is not None:
+            self._keys_mode.disconnect()
+            self._keys_mode = None
         self._note_map = None
         self._ctrl_map = None
         self._pads = None
@@ -78,6 +147,13 @@ class MVave_SMC_PAD(ControlSurface):
         self._session_zoom = None
         self._mixer = None
         ControlSurface.disconnect(self)
+
+    def receive_midi(self, midi_bytes):
+        try:
+            _tell_knobs(midi_bytes)
+        except Exception:
+            self._log_exception('tell the knobs script')
+        ControlSurface.receive_midi(self, midi_bytes)
 
     def _do_combine(self):
         if self not in MVave_SMC_PAD._active_instances:
@@ -105,10 +181,12 @@ class MVave_SMC_PAD(ControlSurface):
         self._session.set_select_buttons(self._note_map[SCENEDN], self._note_map[SCENEUP])
         # range(tsb_x) is the horizontal count for the track selection box
         self._scene_launch_buttons = [self._note_map[SCENELAUNCH[index]] for index in range(TSB_X)]
-        # range(tsb_y) Range value is the track selection
-        self._track_stop_buttons = [self._note_map[TRACKSTOP[index]] for index in range(TSB_Y)]
+        # One stop button per track, so the box's width (TSB_Y only matched
+        # because the box is square).
+        self._track_stop_buttons = [self._note_map[TRACKSTOP[index]] for index in range(TSB_X)]
         self._session.set_stop_all_clips_button(self._note_map[STOPALLCLIPS])
         self._session.set_stop_track_clip_buttons(tuple(self._track_stop_buttons))
+        self._apply_stop_colours()
         self._session.selected_scene().name = 'Selected_Scene'
         self._session.selected_scene().set_launch_button(self._note_map[SELSCENELAUNCH])
         self._session.set_slot_launch_button(self._note_map[SELCLIPLAUNCH])
@@ -146,6 +224,17 @@ class MVave_SMC_PAD(ControlSurface):
             elif setter not in self._missing_clip_setters:
                 self._missing_clip_setters.append(setter)
                 self.log_message('MVave_SMC_PAD: ClipSlotComponent has no %s()' % setter)
+
+    def _apply_stop_colours(self):
+        # Guarded by name like the clip colours above. Without them the stop
+        # pads light 127, which this palette shows as green.
+        for setter, value in (('set_stop_clip_value', MIXER_STOP),
+                              ('set_stop_clip_triggered_value', MIXER_STOP_TRIGGERED)):
+            method = getattr(self._session, setter, None)
+            if method is not None:
+                method(value)
+            else:
+                self.log_message('MVave_SMC_PAD: SessionComponent has no %s()' % setter)
 
     def _setup_modifier(self):
         # Note 19 gives up its transport role so it can act as a plain
@@ -186,7 +275,9 @@ class MVave_SMC_PAD(ControlSurface):
         self._mixer.master_strip().name = 'Master_Channel_Strip'
         self._mixer.master_strip().set_select_button(self._note_map[MASTERSEL])
         self._mixer.selected_strip().name = 'Selected_Channel_Strip'
-        self._mixer.set_select_buttons(self._note_map[TRACKRIGHT], self._note_map[TRACKLEFT])
+        # The arrows are NOT given to the mixer: Stop + arrow moves between
+        # devices, so _setup_stop_and_arrows owns them and selects tracks itself.
+        self._mixer.set_select_buttons(None, None)
         self._mixer.set_crossfader_control(self._ctrl_map[CROSSFADER])
         self._mixer.set_prehear_volume_control(self._ctrl_map[CUELEVEL])
         self._mixer.master_strip().set_volume_control(self._ctrl_map[MASTERVOLUME])
@@ -234,7 +325,7 @@ class MVave_SMC_PAD(ControlSurface):
         transport = SpecialTransportComponent()
         transport.name = 'Transport'
         transport.set_play_button(self._note_map[PLAY])
-        transport.set_stop_button(self._note_map[STOP])
+        transport.set_stop_button(None)     # owned by _setup_stop_and_arrows
         transport.set_record_button(self._note_map[REC])
         transport.set_nudge_buttons(self._note_map[NUDGEUP], self._note_map[NUDGEDOWN])
         transport.set_undo_button(self._note_map[UNDO])
@@ -248,6 +339,77 @@ class MVave_SMC_PAD(ControlSurface):
         transport.set_seek_buttons(self._note_map[SEEKFWD], self._note_map[SEEKRWD])
         transport.set_punch_buttons(self._note_map[PUNCHIN], self._note_map[PUNCHOUT])
         # transport.set_song_position_control(self._ctrl_map[SONGPOSITION]) #still not implemented as of Live 8.1.6
+
+    def _setup_keys(self):
+        # Preset 3's keyboard. Guarded so a fault in it -- a Live without the
+        # song scale API, say -- costs the keyboard, not the clip launcher.
+        try:
+            self._keys_mode = KeysMode(self, self._note_map)
+        except Exception:
+            self._keys_mode = None
+            self._log_exception('keyboard setup')
+
+    def refresh_state(self):
+        # Called on a preset or PAD BANK switch (via MVave_SMC_KNOBS) as well
+        # as by Live. The device shows a layout's LEDs only while it is up, so
+        # the keyboard's must be resent every time, not just when they change.
+        ControlSurface.refresh_state(self)
+        if self._keys_mode is not None:
+            try:
+                self._keys_mode.repaint()
+            except Exception:
+                self._log_exception('keyboard repaint')
+        # The clip colours just went out; the intro, while it runs, goes on top.
+        try:
+            self._intro.repaint()
+        except Exception:
+            self._log_exception('startup intro')
+
+    def _setup_stop_and_arrows(self):
+        # Stop doubles as a modifier: held, the arrows step the blue hand
+        # through the selected track's devices, which the macro knobs follow.
+        # So the transport cannot own it -- it stops Live on RELEASE, and only
+        # if no arrow was pressed while it was held. Same idiom as the
+        # disabled MODIFIER above: plain value listeners, no shared buttons.
+        for note, listener in ((STOP, self._stop_value),
+                               (TRACKLEFT, self._left_value),
+                               (TRACKRIGHT, self._right_value)):
+            button = self._note_map[note]
+            if button is not None:
+                button.add_value_listener(listener)
+                self._nav_listeners.append((button, listener))
+
+    def _stop_value(self, value):
+        if value:
+            self._stop_held, self._stop_combo = True, False
+        elif self._stop_held:
+            self._stop_held = False
+            if not self._stop_combo:
+                self.song().stop_playing()
+
+    def _left_value(self, value):
+        if value:
+            self._arrow(-1)
+
+    def _right_value(self, value):
+        if value:
+            self._arrow(1)
+
+    def _arrow(self, delta):
+        try:
+            song = self.song()
+            if self._stop_held:
+                self._stop_combo = True
+                track = song.view.selected_track
+                device = step(device_list(track), track.view.selected_device, delta)
+                if device is not None:
+                    song.view.select_device(device)
+            else:
+                target = step(track_list(song), song.view.selected_track, delta)
+                if target is not None:
+                    song.view.selected_track = target
+        except Exception:
+            self._log_exception('stop/arrow navigation')
 
     def _on_selected_track_changed(self):
         # Guarded. Live calls this on every track click and all three surfaces
@@ -308,8 +470,31 @@ class MVave_SMC_PAD(ControlSurface):
 
     def _load_MIDI_map(self):
         is_momentary = True
+        # note -> (LED number, on colour) for every pad that is lit somewhere
+        # other than its own note: the clip grid and the mixer bank.
+        led_remap = {}
+        for row in CLIPNOTEMAP:
+            for note in row:
+                if note >= 0 and PAD_LED_OFFSET:
+                    led_remap[note] = (note + PAD_LED_OFFSET, None)
+        for notes, on_value in ((TRACKMUTE, MIXER_TRACK_ON),
+                                (TRACKSOLO, MIXER_SOLO),
+                                (TRACKREC, MIXER_ARM),
+                                (TRACKSTOP, None)):     # the session sends its own stop colours
+            for note in notes:
+                if note >= 0 and MIXER_LED_OFFSET:
+                    led_remap[note] = (note + MIXER_LED_OFFSET, on_value)
+        # The keyboard paints its own LEDs; this only keeps anything the
+        # framework sends for these notes off other layouts' LEDs.
+        for notes, leds in ((KEYS_NOTES, KEYS_LEDS), (SETTINGS_NOTES, SETTINGS_LEDS)):
+            for note, led in zip(notes, leds):
+                led_remap[note] = (led, None)
         for note in range(128):
-            button = ButtonElement(is_momentary, MESSAGETYPE, BUTTONCHANNEL, note)
+            led_note, on_value = led_remap.get(note, (128, None))
+            if led_note < 128:
+                button = LedRemapButton(is_momentary, MESSAGETYPE, BUTTONCHANNEL, note, led_note, on_value)
+            else:
+                button = ButtonElement(is_momentary, MESSAGETYPE, BUTTONCHANNEL, note)
             button.name = 'Note_' + str(note)
             self._note_map.append(button)
         self._note_map.append(None)     # add None to the end of the list, selectable with [-1]

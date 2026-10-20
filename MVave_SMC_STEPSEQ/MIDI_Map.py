@@ -1,7 +1,7 @@
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-09-06'
+SCRIPT_REVISION = '2026-10-20f'
 
 # Hardware and layout constants for the SMC-PAD step sequencer.
 #
@@ -78,11 +78,11 @@ BUTTON_IS_CC = False        # set True if you manage to reassign them to CCs
 # device has a key physically labelled SHIFT which does something else entirely
 # and transmits nothing at all (HARDWARE.md 6.1), so naming this one SHIFT meant
 # two unrelated things under one word in a codebase about this exact device.
-BTN_PLAY = 117              # play/stop toggle -- see below for why the script owns it
-BTN_VIEW = 118              # focus <-> overview
+BTN_PLAY = 117              # launch/stop the bound clip; +MOD: Live's transport
+BTN_VIEW = 118              # focus <-> overview on release; held + arrows: device
 BTN_MOD = 119             # momentary modifier: hold for the lane picker
-BTN_LEFT = 120              # previous step page; +MOD lane bank down
-BTN_RIGHT = 121             # next step page;     +MOD lane bank up
+BTN_LEFT = 120              # previous step page; +MOD a bar shorter; +MOD+VIEW lane bank down; +VIEW prev device
+BTN_RIGHT = 121             # next step page;     +MOD a bar longer;  +MOD+VIEW lane bank up;   +VIEW next device
 
 # Why the script implements transport at all: claiming a port with a Control
 # Surface disables Track/Sync/Remote on it (HARDWARE.md 1.4), so any button the
@@ -146,7 +146,15 @@ LOG_MIDI = False
 #     ignored entirely, silently (HARDWARE.md 3.3).
 LED_CHANNEL = PAD_CHANNEL    # MEASURED 2026-08-31: the LEDs answer on the same
                              # channel the pads transmit on.
-LED_NOTES = PAD_NOTES        # MEASURED 2026-08-31: the LEDs follow the pad note
+# MEASURED 2026-10-07: the editor gives each pad an LED number separate from its
+# note, and a pad whose LED number equals its own note shows WHITE at velocity 0
+# -- it cannot be switched off. So the preset sets each pad's LED number to its
+# note - 32 (69-84) and the script lights that instead. 69-84 stays clear of the
+# launcher's notes (1-21) and its LEDs (33-48). Set back to PAD_NOTES for a
+# preset whose LED numbers still equal its notes.
+LED_NOTES = tuple(note - 32 for note in PAD_NOTES)
+# History, from when LED_NOTES = PAD_NOTES:
+#                            # MEASURED 2026-08-31: the LEDs follow the pad note
                              # map. Lighting 1-16 on a preset whose pads send
                              # 101-116 does nothing; lighting 101-116 works.
                              #
@@ -176,18 +184,68 @@ COLOR_STEP_OFF = 0          # off: a step outside the loop, or an unlit empty on
 COLOR_PLAYHEAD = 15         # amber: the step the clip is playing right now
 COLOR_PLAYHEAD_ON = 40      # white: the playhead sitting on an active step
 
-# Optional markers for empty steps that are still inside the loop. Both off by
-# default because the palette has no dim variant -- every colour is full
-# brightness, so a lit empty grid is loud. Try them once you can see the pads:
-# 4 quarter-note markers make 16 steps countable at a glance, which is what a
-# dim white does on a Push.
+# Markers for empty steps that are still inside the loop. The palette has no
+# dim variant -- every colour is full brightness -- so lighting every empty step
+# is loud and COLOR_STEP_EMPTY stays off. The beat markers (every 4th step) were
+# on, blue, from 2026-10-20 until the same day: on the device a lit column of
+# empty steps read as notes, and the blue matched the picker's "loaded" blue.
+# Set COLOR_STEP_DOWNBEAT to try them again; they stay out of the loop's end.
+#
+# Focus view only. In the overview the left column is ALWAYS a beat (a page is
+# 4 steps) and blue is lane 3's colour there, so a marker would read as a note.
 COLOR_STEP_EMPTY = 0        # every in-loop empty step
-COLOR_STEP_DOWNBEAT = 0     # every 4th in-loop empty step, overrides the above
+COLOR_STEP_DOWNBEAT = 0     # every 4th in-loop empty step, overrides the above (21 = blue)
 
-# Overview row colours, one per lane, top row first. Chosen from the separated
+# Overview row colours, one per lane, bottom row (lowest lane) first. Used only
+# with DRUM_COLORS = False. Chosen from the separated
 # anchors and deliberately avoiding both playhead colours, so a playhead column
 # never reads as a lane.
 LANE_COLORS = (5, 14, 21, 24)
+
+# Colour each drum by what it is -- kick, snare, hats... -- in the focus view's
+# notes and the overview's rows, instead of one teal and four fixed row colours.
+#
+# What a drum IS comes from its Drum Rack pad name, which Live usually takes
+# from the sample ("Kick 808", "Crash 2"). A loaded pad whose name matches
+# nothing is 'other'. With no Drum Rack, or an empty pad, the General MIDI drum
+# map decides by pitch instead. Words of three letters or more match anywhere in
+# the name; shorter ones ('bd', 'hh') only as a whole word, so 'ch' does not
+# turn "Chord" into a hat. First match wins, so a "Kick Snare" layer is a kick.
+#
+# Colours avoid the playhead's amber (15) and white (40). Two caveats:
+#   - Light blue (7, hats) sits near the picker's blue (21). If they blur on
+#     your unit, change one of them.
+#   - 4 and 7 come from the by-eye palette sweep (HARDWARE.md 3.2) and nothing
+#     had lit them in this script before. UNVERIFIED on the pads.
+# DRUM_COLORS = False brings back teal steps and LANE_COLORS rows.
+DRUM_COLORS = True
+COLOR_DRUM_OTHER = COLOR_STEP_ON    # teal: a drum none of the kinds below match
+DRUM_KINDS = (
+    # (kind, colour, name words, General MIDI pitches)
+    ('kick', 14, ('kick', 'bd', 'bassdrum'), (35, 36)),           # red-pink
+    ('snare', 5, ('snare', 'sd', 'clap', 'snap', 'rim', 'stick'),
+     (37, 38, 39, 40)),                                            # green
+    ('hat', 7, ('hat', 'hh', 'hihat'), (42, 44, 46)),              # light blue
+    ('cymbal', 4, ('crash', 'ride', 'cymbal', 'cym', 'china', 'splash'),
+     (49, 51, 52, 53, 55, 57, 59)),                                # yellow
+    ('tom', 24, ('tom',), (41, 43, 45, 47, 48, 50)),               # light purple
+)
+
+# The lane picker, shown while MOD is held: the 16 pads become the 16 drums
+# MOD + pad can pick, laid out like the Drum Rack. With DRUM_COLORS on, every
+# drum with a sound or notes shows its kind's colour, the same as its steps, and
+# COLOR_PICK_NOTES / COLOR_PICK_LOADED are only used with DRUM_COLORS off. (Teal
+# for "has notes" was tried: a drum turned from its colour to teal the moment it
+# joined the pattern, which on the pads read as blue and as a fault.) Steps and the playhead are
+# hidden until MOD is released. 0 leaves that kind of pad dark.
+COLOR_PICK_SELECTED = 40    # white: the lane the pads are editing now
+COLOR_PICK_NOTES = 20       # teal: a drum with notes in the clip's loop
+COLOR_PICK_LOADED = 21      # blue: a Drum Rack pad with a sound, no notes yet
+# While the clip plays, a drum's pad flashes white (COLOR_PLAYHEAD_ON, as a step
+# does under the playhead) for each 16th it plays; the lane's own white pad
+# flashes its drum colour instead. Lasts one step, so a drum on back-to-back
+# steps stays lit through them.
+PICKER_FLASH = True
 
 # Shown on the top-left pad when no MIDI clip is bound. 0 = the grid just goes
 # dark, which is unambiguous but tells you nothing; try 24 if you want a "script
@@ -207,6 +265,18 @@ COLOR_NO_CLIP = 0
 BUTTON_LEDS = True
 BTN_LED_ON = 127
 BTN_LED_OFF = 0
+
+# Light '<' and '>' when there is somewhere for them to go: an earlier or later
+# step page, or -- while MOD is held -- another bank of drums. Dark means that
+# press would do nothing. Needs the arrows' feedback option ON, like the rest.
+ARROW_LEDS = True
+
+# Name what just happened in Live's status bar.
+#   SHOW_PAGE_MESSAGES  "Steps 17-32 of 64" when the view pages, by hand or by
+#                       following the playhead, and on a view switch.
+#   SHOW_STEP_MESSAGES  "Kick (C1) step 5/16 on" on every pad edit.
+SHOW_PAGE_MESSAGES = True
+SHOW_STEP_MESSAGES = True
 
 
 # ------------------------------------------------------------------- sequencer
@@ -230,11 +300,22 @@ FOLLOW_PLAYHEAD = True
 # page back onto the playhead or stop the transport.
 FOLLOW_RESUMES_ON_WRAP = True
 
+# The step velocity for each of the controller's VELOCITY settings (Shift +
+# pad 9-12). The lit pads always strike 127, so this is how a pattern gets
+# dynamics. MVave_SMC_KNOBS reads the setting from the device's state reply
+# (byte 22, HARDWARE.md 6.2) and passes on each change; until the first one,
+# steps are written at VELOCITY 4's level, 127, whatever the controller was
+# left on.
+VELOCITY_LEVELS = (40, 70, 100, 127)
+
 # Velocity written into a new note when USE_STRIKE_VELOCITY is False, or when a
-# pad reports 0. With velocity-sensitive pads this is only a fallback.
-PAINT_VELOCITY = 100
+# pad reports 0. With velocity-sensitive pads this is only a fallback. The
+# VELOCITY setting replaces it the moment it arrives.
+PAINT_VELOCITY = VELOCITY_LEVELS[-1]
 
 # Paint each step with the velocity you actually hit the pad at, Push-style.
+# Once the controller has reported its VELOCITY setting, the setting wins: the
+# strike is always 127 here, so it would only ever say "VELOCITY 4".
 #
 # INERT on this hardware: the only banks that light their pads are fixed-velocity,
 # so every strike arrives as 127 and PAINT_VELOCITY effectively governs. Kept on

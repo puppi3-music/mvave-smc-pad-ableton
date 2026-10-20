@@ -5,7 +5,7 @@
 # Surface slot:
 #
 #   slot 1   MVave_SMC_PAD     in MIDIIN3 / out MIDIOUT3   pads, buttons, LEDs
-#   slot 2   MVave_SMC_KNOBS   in SMC-PAD (port 1)         the 8 encoders
+#   slot 2   MVave_SMC_KNOBS   in/out SMC-PAD (port 1)     the 8 encoders
 #
 # BOTH knob banks are used: on the launcher preset that is 14 macros plus two
 # navigation encoders; on the sequencer preset, 16 macros and no navigation.
@@ -13,6 +13,10 @@
 #   bank 1, knobs 7 8 5 6 3 4 1 2   ->  macros 1-8
 #   bank 2, knobs 7 8 5 6 3 4       ->  macros 9-14
 #   bank 2, knobs 1 2               ->  session box X and Y
+#
+# On the keyboard preset (3) the knobs send their own CCs, 21-36, and play the
+# selected device's parameters the way Live's own controllers bank them: see
+# PARAM_BY_CC.
 #
 # The macros follow the selection -- Live's "blue hand" -- rather than being
 # statically MIDI-mapped. Click a different track and the same knobs control that
@@ -37,11 +41,13 @@ import traceback
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-09-06'
+SCRIPT_REVISION = '2026-10-20'
 
 import Live
 from _Framework.ControlSurface import ControlSurface
 from _Framework.DeviceComponent import DeviceComponent
+from _Framework.ButtonElement import ButtonElement
+from _Framework.InputControlElement import MIDI_NOTE_TYPE, MIDI_CC_TYPE
 
 # Measured 2026-08-31 with tools/mvave_probe.py --knobs, one encoder at a time.
 # Every encoder on the device is RELATIVE, both banks, centred on 64:
@@ -122,6 +128,254 @@ MACRO_BY_CC = {
 # invisible.)
 STEPS_PER_SWEEP = 127.0
 
+# Preset 3 (the keyboard): the knobs play the selected device's parameters in
+# the banks Live's own controllers use, so a built-in instrument answers with
+# no mapping. Live's built-in instruments ignore MIDI CCs, which is why the
+# standard synth CCs these knobs used to send did nothing on them.
+#
+#   knob bank 1  ->  Live's first bank of eight for the device
+#   knob bank 2  ->  its second bank
+#
+# The banks are Live 12's own table (ableton.v3 default_bank_definitions, the
+# one Push uses), matched by parameter original_name exactly as Live does.
+# A device the table doesn't list -- racks, plugins, Max devices -- gets
+# parameters 1-16 in order: a rack's macros, or the list a plugin's Configure
+# button builds. Relative, like every other knob here, so switching devices
+# never makes a parameter jump.
+#
+# Slot = position on the panel, reading order (top-left first), bank 1 then
+# bank 2; tools/make_presets.py PARAM_CCS_BANK_* gives each knob its CC.
+PARAM_CC_FIRST = 21
+BANK_SIZE = 8
+PARAM_BANKS = 2
+PARAM_BY_CC = dict((PARAM_CC_FIRST + slot, slot)
+                   for slot in range(BANK_SIZE * PARAM_BANKS))
+
+try:
+    from ableton.v3.control_surface.default_bank_definitions import (
+        BANK_DEFINITIONS, BANK_PARAMETERS_KEY)
+except Exception:
+    # Not Live 12, or the table moved: every device falls back to parameter
+    # order. Said once in Log.txt at load.
+    BANK_DEFINITIONS, BANK_PARAMETERS_KEY = {}, None
+
+
+def device_parameter_slots(device):
+    """The parameters preset 3's knobs play on this device, one per slot,
+    None where a slot has nothing. Banks come from BANK_DEFINITIONS when the
+    device is in it, otherwise parameters 1-16 in order."""
+    size = BANK_SIZE * PARAM_BANKS
+    params = device.parameters
+    definition = BANK_DEFINITIONS.get(getattr(device, 'class_name', None))
+    if definition:
+        by_name = {}
+        for param in params:
+            by_name.setdefault(param.original_name, param)
+        slots = []
+        for index in range(min(PARAM_BANKS, len(definition))):
+            bank = definition.value_by_index(index)
+            names = tuple(bank.get(BANK_PARAMETERS_KEY) or ())[:BANK_SIZE]
+            names += (None,) * (BANK_SIZE - len(names))
+            # str(): a slot can be a dynamic rule object; Live compares its
+            # str() against original_name too.
+            slots.extend(None if name is None else by_name.get(str(name))
+                         for name in names)
+    else:
+        # Index 0 is Device On.
+        slots = [params[i] for i in range(1, min(len(params), size + 1))]
+    return slots + [None] * (size - len(slots))
+
+# Preset and PAD BANK changes. The device remembers the colour each pad last
+# showed and keeps it across a switch, while the pad and sequencer scripts only
+# send what changed, so after Shift + pad or PAD BANK the pads kept the other
+# layout's colours. Nothing reaches port 3 on a switch, but the device sends a
+# 33-byte status sysex on port 1 (this script's input) once a second. A change
+# in it makes both lit scripts repaint. The script that owns what is now on
+# the pads repaints last, so it wins if the other's LEDs land too.
+#
+# Waiting for that beat costs up to a second, so this script also ASKS. The
+# status is the device's reply to MidiSuite's state read, and the device
+# answers the same read from us within ~1 ms, already showing a switch the
+# moment it happens (measured 2026-10-20: five switches, each seen within one
+# 50 ms poll, off the beat). So it sends STATE_REQUEST on display ticks
+# (~100 ms). That needs this script's Output set to SINCO (SMC-PAD-Private):
+# the device answers only there. With no output the request goes nowhere and
+# the beat still repaints, a second late.
+#
+# Every request and reply flashes Live's MIDI indicators, so it asks only
+# every POLL_TICKS (~0.2 s; ~0.25 s was asked for, ticks are ~0.1 s), plus at
+# once whenever a pad or knob sends something
+# the current layout doesn't have (LAYOUTS_BY_NOTE / LAYOUTS_BY_CC): the first
+# touch after a switch gives it away. SHIFT and PAD BANK transmit nothing
+# (HARDWARE.md 6.1), so there is no earlier sign. A switch therefore repaints
+# the moment you touch a pad or knob, or within ~0.2 s if you don't.
+# After a switch it asks on every tick for SWITCH_FAST_TICKS, since switches
+# come in runs (PAD BANK flipped back and forth, a preset then PAD BANK): the
+# first takes up to ~0.2 s to show, the ones after it show at once.
+#
+# The wire format, read from MidiSuite 1.x (CUSBConnect, CMIDITranfer): F0, the
+# packet's 8-bit bytes packed 7 bits at a time, low bits first, then F7. That
+# is why every message starts 00 32 0D: it unpacks to the head, 00 59. A packet
+# is head, command (0x23 = flash read, request and reply), a 3-byte length,
+# the payload and a checksum (the inverted byte sum of the payload). The read
+# is type 4, address 0, 12 bytes; in the reply's unpacked packet, byte 24 is
+# the preset (0-2) and byte 25 the PAD BANK bank (0-1). Measured for presets
+# 1-3, both banks of preset 1 and 2 (2026-10-08 and 2026-10-20).
+#
+# Byte 22 is the VELOCITY setting, 0-3 for Shift + pad 9-12 (measured
+# 2026-10-20). A change is passed to the sequencer, which writes its steps at
+# that level; it repaints nothing. The setting found at startup is not passed
+# on: the controller remembers whatever it was left on, and the sequencer
+# starts at VELOCITY 4 (full) until you choose otherwise.
+STATUS_PREFIX = (0xF0, 0x00, 0x32, 0x0D, 0x21, 0x01)
+STATUS_LENGTH = 33
+STATUS_VELOCITY = 22
+STATUS_PRESET = 24
+STATUS_BANK = 25
+LAUNCHER_PRESET = 0                     # preset 1
+SEQUENCER_PRESET = 1                    # preset 2
+# Every packet from the device starts F0 00 32: the head 00 59, packed. The
+# byte after it carries command bits, so the status (0D) and the OK a write
+# gets back (01, "00 59 00 01 00 00 00 FF") differ there.
+M_VAVE_SYSEX = (0xF0, 0x00, 0x32)
+
+# Where Live puts the controller when it loads: preset 1, PAD BANK off (bank
+# A). Set either to None to leave the controller where it was. Written with
+# the command MidiSuite sends when you change them (captured 2026-10-20 with
+# MIDI Monitor's spy): 0x22, flash write, to the same type-4 state block the
+# read returns, one byte at a time. The preset is address 0x0A (byte 24 of the
+# reply), the bank 0x0B (byte 25). The device switches at once and answers OK.
+# A byte is only written if the first reply shows it wrong, at most
+# STARTUP_TRIES times in all, so a device that ignores it is left alone.
+STARTUP_PRESET = 0
+STARTUP_BANK = 0
+STATE_PRESET_ADDRESS = 0x0A
+STATE_BANK_ADDRESS = 0x0B
+STARTUP_TRIES = 4
+
+POLL_TICKS = 2                  # one request per ~0.2 s
+SWITCH_FAST_TICKS = 40          # then every tick for ~4 s after a switch
+
+
+def _layout_table(ranges):
+    table = {}
+    for first, last, layouts in ranges:
+        for number in range(first, last + 1):
+            table[number] = layouts
+    return table
+
+# The layouts, (preset, bank) counted from 0 with bank None for either, that
+# send each message: a press from none of them means the controller has
+# switched. Port 3 notes (the pad and sequencer scripts hand each message to
+# port3_message) must match MVave_SMC_PAD/MIDI_Map.py and
+# MVave_SMC_STEPSEQ/MIDI_Map.py; tools/stepseq_selftest.py checks they do.
+LAYOUTS_BY_NOTE = _layout_table((
+    (1, 16, ((0, 0),)),                 # launcher clip pads
+    (49, 64, ((0, 1),)),                # mixer
+    (101, 116, ((1, 0),)),              # sequencer steps
+    (117, 121, ((1, None),)),           # sequencer buttons, both banks
+    (85, 100, ((2, 0),)),               # keyboard
+    (22, 37, ((2, 1),)),                # key / scale bank
+    (17, 21, ((0, None), (2, None))),   # launcher buttons, presets 1 and 3
+))
+LAYOUTS_BY_CC = _layout_table((
+    (1, 14, ((0, None), (1, None))),    # macros
+    (15, 16, ((1, None),)),             # the sequencer's last two macros
+    (17, 18, ((0, None),)),             # session box
+    (PARAM_CC_FIRST, PARAM_CC_FIRST + BANK_SIZE * PARAM_BANKS - 1, ((2, None),)),
+))
+
+
+
+def pack7(data):
+    """8-bit bytes -> the device's 7-bit sysex payload, low bits first."""
+    out, acc, bits = [], 0, 0
+    for byte in data:
+        acc |= byte << bits
+        bits += 8
+        while bits >= 7:
+            out.append(acc & 0x7F)
+            acc >>= 7
+            bits -= 7
+    if bits:
+        out.append(acc & 0x7F)
+    return out
+
+
+def unpack7(data):
+    """The device's 7-bit sysex payload -> its 8-bit packet."""
+    out, acc, bits = [], 0, 0
+    for byte in data:
+        acc |= (byte & 0x7F) << bits
+        bits += 7
+        while bits >= 8:
+            out.append(acc & 0xFF)
+            acc >>= 8
+            bits -= 8
+    return out
+
+
+def _packet(command, payload):
+    packet = [0x00, 0x59, command, len(payload), 0x00, 0x00] + list(payload)
+    packet.append(~sum(payload) & 0xFF)
+    return tuple([0xF0] + pack7(packet) + [0xF7])
+
+
+def _state_request():
+    # Type 4, address 0 (4 bytes), 12 bytes (3 bytes).
+    return _packet(0x23, [0x04, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x00, 0x00])
+
+
+def state_write(address, value):
+    """Write one byte of the state block, as MidiSuite does."""
+    return _packet(0x22, [0x04, address, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, value])
+
+
+STATE_REQUEST = _state_request()
+
+
+def decode_status(status):
+    """(preset, bank) from a 33-byte status, both counted from 0."""
+    packet = unpack7(status[1:-1])
+    return packet[STATUS_PRESET], packet[STATUS_BANK]
+
+
+def decode_velocity(status):
+    """The VELOCITY setting from a 33-byte status, 0-3."""
+    return unpack7(status[1:-1])[STATUS_VELOCITY]
+
+
+# Ticks (~100 ms) before each repaint, kept as short as possible. The two are
+# spaced so they don't reach the device as one burst (HARDWARE.md 3.5). Was
+# (3, 5), to clear the ~150 ms preset dump that follows a switch; that wait
+# was cut on 2026-10-08 because the lag was noticeable.
+REPAINT_DELAYS = (1, 2)
+
+# Plain MIDI to the armed track. Ports 1 (this script's) and 2 carry the same
+# plain-MIDI notes and CCs; SMC-PAD-Master (port 2) used to have Track on to
+# pass them to the track. That also passed the controller's note repeat, which
+# the firmware sends as each pad's raw note on channel 10, ports 1 and 2 only
+# (measured 2026-10-17): on preset 3 that is note 85-100, so repeats played
+# C#5 and up whatever the keyboard's key, scale and octave. So Track is now off
+# on port 2 and this script passes the plain MIDI through itself, with Live's
+# note/CC translation, onto PASS_CHANNEL:
+#
+#   preset 3 note repeat   ch 10, KEYS_REPEAT_NOTES -> the scale note that pad
+#                          plays (MVave_SMC_PAD's KeysMode pushes the table)
+#   preset 2 drum pads     ch 10 (and ch 1), DRUM_NOTES -> same notes
+#
+# (Preset 3's knobs used to pass through here as synth CCs; they now play the
+# selected device instead, PARAM_BY_CC.)
+#
+# Anything else -- note repeat on a lit launcher, mixer or sequencer pad --
+# reaches no track at all, which is better than the raw note it used to play.
+# Translation keeps velocity, so repeats keep the device's own (quiet) one.
+PASS_CHANNEL = 1                        # MIDI channel 2, as MVave_SMC_PAD's KEYS_CHANNEL
+REPEAT_CHANNEL = 9                      # MIDI channel 10
+KEYS_REPEAT_NOTES = tuple(range(85, 101))   # == MVave_SMC_PAD KEYS_NOTES
+DRUM_NOTES = tuple(range(36, 52))           # tools/make_presets.py drum_pad
+DRUM_CHANNELS = (REPEAT_CHANNEL, 0)
+
 
 def _clamp(value, ceiling):
     return max(0, min(value, max(0, ceiling)))
@@ -130,20 +384,93 @@ def _clamp(value, ceiling):
 class MVave_SMC_KNOBS(ControlSurface):
     __doc__ = " Encoder half of the M-Vave SMC-PAD: session box + up to 16 device macros "
 
+    # So MVave_SMC_PAD's keyboard can push its note table here.
+    _active_instances = []
+
     def __init__(self, c_instance):
         ControlSurface.__init__(self, c_instance)
         self._logged = set()
         self._exceptions_logged = set()
         self._first_nav_logged = False
         self._first_macro_logged = False
+        self._first_param_logged = False
+        self._slots_device = None
+        self._slots = None
         self._device_logged = False
+        self._last_status = None
+        self._last_velocity = None
+        self._startup_pending = True
+        self._startup_tries = STARTUP_TRIES
+        self._poll_ticks = 0
+        self._fast_ticks = 0
+        self._asked_this_tick = False
         self._device = None
         self._target_device = None
+        self._repeat_buttons = []
         with self.component_guard():
             self._setup_device_control()
-        self.log_message('MVave_SMC_KNOBS: loaded. CC %d/%d navigate; %d macro CCs %s.'
+            self._setup_pass_through()
+        MVave_SMC_KNOBS._active_instances.append(self)
+        self._pull_keys()
+        self.log_message('MVave_SMC_KNOBS: loaded. CC %d/%d navigate; %d macro CCs %s; '
+                         'preset 3 CCs %d-%d play device banks (%s).'
                          % (CC_TRACK, CC_SCENE, len(MACRO_BY_CC),
-                            ','.join(str(c) for c in sorted(MACRO_BY_CC))))
+                            ','.join(str(c) for c in sorted(MACRO_BY_CC)),
+                            min(PARAM_BY_CC), max(PARAM_BY_CC),
+                            'Live bank table, %d devices' % len(BANK_DEFINITIONS)
+                            if BANK_DEFINITIONS else
+                            'no Live bank table -- parameter order only'))
+
+    def disconnect(self):
+        if self in MVave_SMC_KNOBS._active_instances:
+            MVave_SMC_KNOBS._active_instances.remove(self)
+        self._repeat_buttons = []
+        ControlSurface.disconnect(self)
+
+    # ----------------------------------------------------------- pass-through
+
+    def _setup_pass_through(self):
+        # Elements built inside component_guard are registered, so
+        # build_midi_map installs their translations -- the same mechanism
+        # MVave_SMC_PAD's keyboard uses. Forwarding is suppressed: these
+        # belong to the track, not to receive_midi.
+        def passed(element):
+            element.set_channel(PASS_CHANNEL)
+            element.suppress_script_forwarding = True
+            return element
+        for channel in DRUM_CHANNELS:
+            for note in DRUM_NOTES:
+                passed(ButtonElement(True, MIDI_NOTE_TYPE, channel, note))
+        for note in KEYS_REPEAT_NOTES:
+            button = ButtonElement(True, MIDI_NOTE_TYPE, REPEAT_CHANNEL, note)
+            # Untranslated until the keyboard says what each pad plays, and
+            # forwarding suppressed, so until then a repeat goes nowhere.
+            button.suppress_script_forwarding = True
+            self._repeat_buttons.append(button)
+
+    def _pull_keys(self):
+        # The pad script may have loaded first; if not, it pushes when it does.
+        # Its absence is _pad_session's to report, not this.
+        for pad in self._instances('MVave_SMC_PAD'):
+            keys = getattr(pad, '_keys_mode', None)
+            if keys is None:
+                continue
+            try:
+                self.keys_changed(keys.targets())
+            except Exception:
+                self._log_exception('read keyboard notes')
+
+    def keys_changed(self, targets):
+        """The note each of preset 3's 16 keyboard pads plays (None = none),
+        PAD1 first. Called by MVave_SMC_PAD whenever key, scale, octave or
+        layout changes, so note repeat plays what the pad plays."""
+        for button, note in zip(self._repeat_buttons, targets):
+            if note is None:
+                button.use_default_message()
+            else:
+                button.set_identifier(note)
+                button.set_channel(PASS_CHANNEL)
+        self.request_rebuild_midi_map()
 
     # ----------------------------------------------------------------- device
 
@@ -256,34 +583,112 @@ class MVave_SMC_KNOBS(ControlSurface):
                            % (device.name, max(0, len(params) - 1), macro),
                            key=(id(device), macro))
             return
-        param = params[macro]
+        self._adjust_parameter(params[macro], delta)
+
+    def _adjust_slot(self, slot, delta):
+        device = self._current_device()
+        if device is None:
+            self._log_once('no device selected yet -- click a track to bind one')
+            return
+        if (self._slots is None or self._slots_device is None
+                or self._slots_device != device
+                or not BANK_DEFINITIONS.get(getattr(device, 'class_name', None))):
+            # Cached only for devices in Live's table, where resolving reads
+            # every parameter's name; a plugin's list changes under Configure
+            # and its slots are cheap to read anyway.
+            self._slots = device_parameter_slots(device)
+            self._slots_device = device
+        param = self._slots[slot]
+        if param is None:
+            self._log_once('"%s" has nothing on preset 3 knob slot %d'
+                           % (device.name, slot + 1),
+                           key=(getattr(device, 'class_name', None), slot))
+            return
+        self._adjust_parameter(param, delta)
+
+    def _adjust_parameter(self, param, delta):
         if not param.is_enabled:
             return
+        # Each read is a call into Live, once per click of every turn.
+        low, high = param.min, param.max
         if param.is_quantized:
             new_value = param.value + delta
         else:
-            new_value = param.value + delta * (param.max - param.min) / STEPS_PER_SWEEP
+            new_value = param.value + delta * (high - low) / STEPS_PER_SWEEP
         # Clamped here: writing outside a parameter's range raises, and an
         # exception inside a MIDI callback disables the whole script silently.
-        param.value = max(param.min, min(param.max, new_value))
+        param.value = max(low, min(high, new_value))
 
     # ------------------------------------------------------------------- midi
+
+    def port3_message(self, midi_bytes):
+        if (len(midi_bytes) == 3 and (midi_bytes[0] & 0xF0) == 0x90
+                and midi_bytes[2]):
+            self._layout_hint(LAYOUTS_BY_NOTE.get(midi_bytes[1]))
+
+    def _layout_hint(self, layouts):
+        """Ask now if a message came from a layout other than the last one
+        the controller reported. At most once a tick: a chord of presses
+        after a switch needs one answer, not sixteen."""
+        if not layouts or self._last_status is None or self._asked_this_tick:
+            return
+        preset, bank = self._last_status
+        for p, b in layouts:
+            if p == preset and (b is None or b == bank):
+                return
+        self._ask_state()
+
+    def _ask_state(self):
+        self._asked_this_tick = True
+        self._poll_ticks = 0
+        try:
+            # Ask for the preset, bank and velocity; the reply is a status.
+            self._send_midi(STATE_REQUEST)
+        except Exception:
+            self._log_exception('ask the device for its state')
+
+    def update_display(self):
+        ControlSurface.update_display(self)
+        self._asked_this_tick = False
+        self._poll_ticks += 1
+        if self._fast_ticks > 0:
+            self._fast_ticks -= 1
+        # Every tick until the startup preset is in place, so it's seen at once.
+        if (self._startup_pending or self._fast_ticks > 0
+                or self._poll_ticks >= POLL_TICKS):
+            self._ask_state()
+            self._asked_this_tick = False
 
     def build_midi_map(self, midi_map_handle):
         ControlSurface.build_midi_map(self, midi_map_handle)
         script_handle = self._c_instance.handle()
-        for cc in tuple(NAV_CCS) + tuple(sorted(MACRO_BY_CC)):
+        for cc in tuple(NAV_CCS) + tuple(sorted(MACRO_BY_CC)) + tuple(sorted(PARAM_BY_CC)):
             Live.MidiMap.forward_midi_cc(script_handle, midi_map_handle, CHANNEL, cc)
 
     def receive_midi(self, midi_bytes):
         try:
+            if tuple(midi_bytes[:len(M_VAVE_SYSEX)]) == M_VAVE_SYSEX:
+                # The status every second and the preset dump after a switch.
+                # Handed to the framework, each one is an "unknown sysex" line
+                # in Log.txt.
+                if (len(midi_bytes) == STATUS_LENGTH
+                        and tuple(midi_bytes[:6]) == STATUS_PREFIX):
+                    status = decode_status(midi_bytes)
+                    if not self._move_to_startup(status):
+                        self._on_device_status(status)
+                    self._on_velocity_setting(decode_velocity(midi_bytes))
+                return
             if len(midi_bytes) == 3 and (midi_bytes[0] & 0xF0) == 0xB0:
                 cc, value = midi_bytes[1], midi_bytes[2]
+                self._layout_hint(LAYOUTS_BY_CC.get(cc))
                 if cc in NAV_CCS:
                     self._navigate(cc, value)
                     return
                 if cc in MACRO_BY_CC:
                     self._macro(cc, value)
+                    return
+                if cc in PARAM_BY_CC:
+                    self._param(cc, value)
                     return
         except Exception:
             # An uncaught exception here disables the entire script until Live
@@ -318,6 +723,92 @@ class MVave_SMC_KNOBS(ControlSurface):
         delta = decode_relative(value)
         if delta:
             self._adjust_macro(MACRO_BY_CC[cc], delta)
+
+    def _param(self, cc, value):
+        if not self._first_param_logged:
+            self._first_param_logged = True
+            self.log_message('MVave_SMC_KNOBS: first preset 3 knob CC -- %d value %d -> slot %d'
+                             % (cc, value, PARAM_BY_CC[cc] + 1))
+        delta = decode_relative(value)
+        if delta:
+            self._adjust_slot(PARAM_BY_CC[cc], delta)
+
+    # ------------------------------------------------------------ pad lights
+
+    def _move_to_startup(self, status):
+        """Until the controller is on STARTUP_PRESET / STARTUP_BANK, write the
+        first byte that is wrong. True while a write is on its way, so this
+        status repaints nothing: the next one shows the switch."""
+        if not self._startup_pending:
+            return False
+        preset, bank = status
+        for address, wanted, actual in ((STATE_PRESET_ADDRESS, STARTUP_PRESET, preset),
+                                        (STATE_BANK_ADDRESS, STARTUP_BANK, bank)):
+            if wanted is None or wanted == actual:
+                continue
+            if self._startup_tries <= 0:
+                self._log_once('the controller did not take the startup preset '
+                               'or bank; leaving it where it is')
+                break
+            self._startup_tries -= 1
+            self._send_midi(state_write(address, wanted))
+            return True
+        self._startup_pending = False
+        return False
+
+    def _on_device_status(self, status):
+        if status == self._last_status:
+            return
+        first = self._last_status is None
+        if not first:
+            self._fast_ticks = SWITCH_FAST_TICKS
+        self._last_status = status
+        preset, bank = status
+        on_sequencer = preset == SEQUENCER_PRESET and not bank
+        pad = self._instances('MVave_SMC_PAD')
+        seq = self._instances('MVave_SMC_STEPSEQ')
+        if first:
+            # The startup light show (MVave_SMC_PAD/StartupIntro.py) plays
+            # on the clip grid, so only if that is what the pads show now.
+            # Scheduled, like the repaints below, to run in the pad script's
+            # own context. The flag is never None, so it is passed on.
+            for script in pad:
+                play_intro = getattr(script, 'play_intro', None)
+                if play_intro is not None:
+                    script.schedule_message(1, play_intro,
+                                            preset == LAUNCHER_PRESET and not bank)
+        # The sequencer keeps its clip while another preset is up, so the
+        # selection can move around on preset 3 without losing the pattern.
+        for script in seq:
+            set_on_screen = getattr(script, 'set_on_screen', None)
+            if set_on_screen is not None:
+                set_on_screen(preset == SEQUENCER_PRESET)
+        order = pad + seq if on_sequencer else seq + pad
+        for delay, script in zip(REPAINT_DELAYS, order):
+            # Scheduled on the other script, so the repaint runs in its own
+            # context, as Live's own refresh_state call would.
+            script.schedule_message(delay, script.refresh_state)
+
+    def _on_velocity_setting(self, setting):
+        if setting == self._last_velocity:
+            return
+        first = self._last_velocity is None
+        self._last_velocity = setting
+        if first:
+            return
+        for script in self._instances('MVave_SMC_STEPSEQ'):
+            set_velocity_setting = getattr(script, 'set_velocity_setting', None)
+            if set_velocity_setting is not None:
+                set_velocity_setting(setting)
+
+    def _instances(self, name):
+        # Resolved per call for the same reason as _pad_session. The
+        # sequencer is optional, so its absence is not worth a log line.
+        try:
+            module = __import__('%s.%s' % (name, name), fromlist=[name])
+            return list(getattr(getattr(module, name), '_active_instances', None) or [])[:1]
+        except Exception:
+            return []
 
     # ---------------------------------------------------------------- session
 

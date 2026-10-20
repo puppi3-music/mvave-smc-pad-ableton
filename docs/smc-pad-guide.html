@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMC-PAD Live Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #eceef2;
+    --panel: #f8f9fb;
+    --ink: #1a1e26;
+    --muted: #586170;
+    --line: #d3d7df;
+    --accent: #2f6f8c;
+    --accent-soft: #dbe8ee;
+    --device: #23262d;
+    --device-edge: #3a3e47;
+    --pad-off: #34383f;
+    --pad-label: #8b919c;
+    --note-bg: #fff6e3;
+    --note-line: #e9c77a;
+    /* pad colours, as the controller shows them */
+    --c-green: #3fbf63;
+    --c-orange: #f08a24;
+    --c-pink: #e8507e;
+    --c-blue: #3d7ef0;
+    --c-purple: #a68be6;
+    --c-teal: #22b5a5;
+    --c-amber: #f3b739;
+    --c-white: #f4f4f1;
+    --c-yellow: #eadb3c;
+    --c-hat: #7cc4f2;
+    --c-ice: #d3e6f7;
+    --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --cond: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #14171c;
+      --panel: #1c2027;
+      --ink: #e6e9ee;
+      --muted: #9aa3b1;
+      --line: #2e343e;
+      --accent: #7fbfdb;
+      --accent-soft: #1d3440;
+      --device: #0d0f13;
+      --device-edge: #2a2e36;
+      --pad-off: #262a31;
+      --pad-label: #7d8592;
+      --note-bg: #2c2516;
+      --note-line: #7a6330;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #14171c;
+    --panel: #1c2027;
+    --ink: #e6e9ee;
+    --muted: #9aa3b1;
+    --line: #2e343e;
+    --accent: #7fbfdb;
+    --accent-soft: #1d3440;
+    --device: #0d0f13;
+    --device-edge: #2a2e36;
+    --pad-off: #262a31;
+    --pad-label: #7d8592;
+    --note-bg: #2c2516;
+    --note-line: #7a6330;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font: 16px/1.6 var(--sans);
+    padding-inline: 16px;
+    padding-block: 32px 64px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; display: grid; gap: 48px; }
+
+  h1, h2, h3 { font-family: var(--cond); line-height: 1.15; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 700; letter-spacing: -0.01em; }
+  h2 { font-size: 1.75rem; font-weight: 700; }
+  h3 { font-size: 1.15rem; font-weight: 600; }
+  p { margin: 0; max-width: 65ch; }
+  .eyebrow {
+    font-family: var(--cond); font-weight: 600; font-size: 0.8rem;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent);
+  }
+  .lede { color: var(--muted); font-size: 1.1rem; }
+  kbd {
+    font-family: var(--mono); font-size: 0.85em;
+    background: var(--panel); border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 5px; padding: 0.05em 0.4em; white-space: nowrap;
+  }
+  code { font-family: var(--mono); font-size: 0.88em; }
+
+  header { display: grid; gap: 12px; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  nav a {
+    font-family: var(--cond); font-weight: 600; font-size: 0.95rem;
+    color: var(--accent); text-decoration: none;
+    border: 1px solid var(--line); background: var(--panel);
+    padding: 6px 12px; border-radius: 999px;
+  }
+  nav a:hover, nav a:focus-visible { border-color: var(--accent); outline: none; }
+
+  section { display: grid; gap: 20px; }
+  .section-head { display: grid; gap: 6px; border-top: 2px solid var(--ink); padding-top: 14px; }
+
+  /* mode switch strip */
+  .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .mode {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px; display: grid; gap: 6px; align-content: start; text-decoration: none; color: inherit;
+  }
+  .mode:hover, .mode:focus-visible { border-color: var(--accent); outline: none; }
+  .mode .slot { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+  .mode strong { font-family: var(--cond); font-size: 1.3rem; }
+
+  /* two-column: device drawing + explanation */
+  .split { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 720px) { .split { grid-template-columns: 1fr; } }
+
+  .device {
+    background: var(--device); border: 1px solid var(--device-edge); border-radius: 14px;
+    padding: 16px; display: grid; gap: 12px; max-width: 300px; width: 100%; box-sizing: border-box;
+  }
+  .device-caption {
+    font-family: var(--cond); font-size: 0.75rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--pad-label); display: flex; justify-content: space-between; gap: 12px;
+  }
+  .device-caption > span:last-child:not(:first-child) { text-align: right; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .pad {
+    aspect-ratio: 1; border-radius: 6px; background: var(--pad-off);
+    display: grid; place-items: end start; padding: 4px 5px;
+    font-family: var(--mono); font-size: 0.62rem; color: rgba(0,0,0,0.55);
+    max-width: 100%;
+  }
+  .pad.off { color: var(--pad-label); }
+  .pad.green { background: var(--c-green); }
+  .pad.orange { background: var(--c-orange); }
+  .pad.pink { background: var(--c-pink); }
+  .pad.blue { background: var(--c-blue); }
+  .pad.purple { background: var(--c-purple); }
+  .pad.teal { background: var(--c-teal); }
+  .pad.amber { background: var(--c-amber); }
+  .pad.white { background: var(--c-white); }
+  .pad.yellow { background: var(--c-yellow); }
+  .pad.hat { background: var(--c-hat); }
+  .pad.ice { background: var(--c-ice); }
+  #keys-settings .pad { cursor: pointer; transition: box-shadow 0.1s; }
+  #keys-settings .pad:hover, #keys-settings .pad:focus-visible, #keys-settings .pad.previewing {
+    outline: none; box-shadow: 0 0 0 2px var(--device), 0 0 0 4px var(--accent);
+  }
+  #keys-notes.previewing { border-color: var(--accent); }
+  .keys-hint { color: var(--muted); font-size: 0.9rem; margin-top: -8px; }
+  .rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 10px; align-items: center; }
+  .rows .row-label { font-family: var(--mono); font-size: 0.7rem; color: var(--pad-label); text-align: right; }
+  .rows .grid { grid-column: 2; }
+  .axis {
+    font-family: var(--mono); font-size: 0.7rem; color: var(--pad-label);
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center;
+  }
+
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 16px; padding: 0; margin: 0; list-style: none; }
+  .legend li { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; }
+  @media (max-width: 560px) { .legend li.wide { flex-direction: column; align-items: start; gap: 8px; } }
+  .swatch { width: 18px; height: 18px; border-radius: 4px; flex: none; border: 1px solid rgba(0,0,0,0.15); }
+
+  .explain { display: grid; gap: 18px; }
+
+  /* control tables */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.97rem; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th {
+    font-family: var(--cond); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  td:first-child { width: 38%; font-weight: 500; }
+  tbody tr:last-child td { border-bottom: none; }
+  td code { overflow-wrap: anywhere; }
+  @media (max-width: 560px) { th, td { padding: 10px 8px; } }
+  @media (max-width: 360px) { table { font-size: 0.9rem; } th, td { padding-inline: 6px; } }
+
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; counter-reset: step; }
+  .steps li { display: grid; grid-template-columns: 32px 1fr; gap: 12px; align-items: start; }
+  .steps li::before {
+    counter-increment: step; content: counter(step);
+    font-family: var(--cond); font-weight: 700; font-size: 0.95rem;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    display: grid; place-items: center;
+  }
+
+  .note {
+    background: var(--note-bg); border: 1px solid var(--note-line); border-radius: 10px;
+    padding: 14px 16px; display: grid; gap: 6px;
+  }
+  .note strong { font-family: var(--cond); font-size: 1.05rem; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 12px; align-content: start; }
+  .settings { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 0.95rem; }
+  .settings dt { color: var(--muted); }
+  .settings dd { margin: 0; font-family: var(--mono); font-size: 0.9rem; }
+
+  .trouble { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .trouble .panel { gap: 6px; }
+  .trouble h3 { font-size: 1.05rem; }
+  .trouble p { color: var(--muted); font-size: 0.95rem; }
+
+  /* example sessions */
+  .flows { display: grid; gap: 20px; }
+  .flow { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 14px; }
+  .flow-head { display: grid; gap: 4px; }
+  .flow-head h3 { font-size: 1.35rem; }
+  .flow-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-family: var(--cond); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.04em;
+    background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 10px;
+  }
+  .see { display: block; margin-top: 4px; color: var(--muted); font-size: 0.93rem; }
+  .substep { display: block; margin-top: 4px; }
+  .see::before { content: "You'll see: "; font-weight: 600; color: var(--ink); }
+  .tip { border-left: 3px solid var(--accent); padding-left: 12px; font-size: 0.95rem; }
+  .tip strong { font-family: var(--cond); }
+  .mini { display: grid; grid-template-columns: repeat(4, 22px); gap: 3px; flex: none; }
+  .mini span { width: 22px; height: 22px; border-radius: 3px; background: var(--pad-off); }
+  .mini .k { background: var(--c-pink); } .mini .s { background: var(--c-green); } .mini .h { background: var(--c-hat); }
+  .mini .b, .mini .r { background: var(--c-blue); } .mini .p { background: var(--c-purple); } .mini .w { background: var(--c-white); }
+  .with-mini { display: flex; gap: 16px; align-items: start; margin-top: 6px; }
+  .with-mini .see { margin-top: 0; }
+
+  .glossary { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; font-size: 0.95rem; }
+  .glossary dt { font-weight: 600; }
+  .glossary dd { margin: 0; color: var(--muted); }
+  @media (max-width: 560px) { .glossary { grid-template-columns: 1fr; gap: 2px; } .glossary dd { margin-bottom: 8px; } }
+
+  footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 16px; }
+
+  /* contents column: wide screens only; narrower ones keep the header's links */
+  html { scroll-padding-top: 24px; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+  .toc { display: none; }
+  @media (min-width: 1140px) {
+    .layout {
+      display: grid; grid-template-columns: 210px minmax(0, 920px);
+      gap: 48px; justify-content: center;
+    }
+    .wrap { margin: 0; }
+    header nav { display: none; }
+    .toc {
+      display: block; position: sticky; top: 24px; align-self: start;
+      max-height: calc(100vh - 48px); overflow-y: auto;
+      font-family: var(--cond); font-size: 0.95rem;
+      padding-right: 4px;
+    }
+    .toc-title {
+      font-weight: 600; font-size: 0.8rem; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--muted); margin: 0 0 10px 12px;
+    }
+    .toc ol { list-style: none; margin: 0; padding: 0; }
+    .toc a {
+      display: block; color: var(--muted); text-decoration: none;
+      padding: 4px 10px; border-left: 2px solid var(--line); line-height: 1.3;
+    }
+    .toc > ol > li > a { font-weight: 600; color: var(--ink); }
+    .toc a:hover, .toc a:focus-visible { color: var(--accent); outline: none; }
+    .toc a.active { color: var(--accent); border-left-color: var(--accent); }
+    .toc ol ol { display: none; }
+    .toc li.open > ol { display: block; }
+    .toc ol ol a { padding-left: 22px; font-size: 0.88rem; }
+    .toc ol ol a.active { background: var(--accent-soft); border-radius: 0 6px 6px 0; }
+  }
+</style>
+
+<div class="layout">
+
+  <aside class="toc" aria-label="Contents">
+    <p class="toc-title">Contents</p>
+    <ol>
+      <li><a href="#flows">Example sessions</a></li>
+      <li><a href="#quick">I want to…</a></li>
+      <li><a href="#switch">Switching modes</a></li>
+      <li><a href="#launcher">Clip launcher</a></li>
+      <li><a href="#mixer">Mixer</a></li>
+      <li><a href="#sequencer">Step sequencer</a></li>
+      <li><a href="#keys">Keyboard</a></li>
+      <li><a href="#drums">Drum pads</a></li>
+      <li><a href="#setup">Setup</a></li>
+      <li><a href="#trouble">If something's off</a></li>
+    </ol>
+  </aside>
+
+<div class="wrap">
+
+  <header>
+    <span class="eyebrow">M-Vave SMC-PAD × Ableton Live 12</span>
+    <h1>Using your SMC-PAD with Live</h1>
+    <p class="lede">The controller has three presets: one for launching clips, one for programming drum patterns, and one for playing a synth with the pads as a keyboard. Preset 1 also has a mixer one button press away.</p>
+    <p><strong>First time?</strong> Do the one-off <a href="#setup">Setup</a> at the bottom of this page, then follow <a href="#flows">Example sessions</a> from the top. They take you from an empty Live set to a recorded jam.</p>
+    <nav aria-label="Sections">
+      <a href="#flows">Example sessions</a>
+      <a href="#quick">I want to…</a>
+      <a href="#switch">Switching modes</a>
+      <a href="#launcher">Clip launcher</a>
+      <a href="#mixer">Mixer</a>
+      <a href="#sequencer">Step sequencer</a>
+      <a href="#keys">Keyboard</a>
+      <a href="#drums">Drum pads</a>
+      <a href="#setup">Setup</a>
+      <a href="#trouble">If something's off</a>
+    </nav>
+  </header>
+
+  <!-- EXAMPLE SESSIONS -->
+  <section id="flows">
+    <div class="section-head">
+      <span class="eyebrow">Start here</span>
+      <h2>Example sessions</h2>
+    </div>
+    <p>Four walkthroughs that build on each other: make a beat, play over it, add a bassline, then perform and record the whole thing. Each one works on its own too. You switch presets by holding <kbd>Shift</kbd> and pressing pad 1, 2 or 3 (the bottom row, from the left), and nothing in Live needs changing when you do.</p>
+
+    <div class="flows">
+
+      <!-- FLOW 1 -->
+      <article class="flow" id="flow-beat">
+        <div class="flow-head">
+          <span class="eyebrow">Session 1</span>
+          <h3>Program a beat from scratch</h3>
+          <div class="flow-meta"><span class="chip">Preset 2</span><span class="chip">About 5 minutes</span><span class="chip">Needs a Drum Rack kit</span></div>
+        </div>
+        <ol class="steps">
+          <li><span>In Live's browser, open <strong>Drums</strong> and drag any Drum Rack kit onto an empty MIDI track.</span></li>
+          <li><span>In Session view, <strong>double-click an empty clip slot</strong> on that track. Live makes a one-bar clip and selects it. One bar is 16 steps, one per pad.</span></li>
+          <li><span>Switch the controller to <strong>preset 2</strong>.
+            <span class="see">dark pads: the clip is empty. Steps read left to right, top to bottom, like text, so the left-hand column is the four beats of the bar (steps 1, 5, 9 and 13).</span></span></li>
+          <li><span><strong>Kick.</strong> Hold <kbd>Record</kbd> and check the bottom-left pad is white: that's C1, the kick in almost every kit. If it isn't white, press it. Let go of <kbd>Record</kbd>, then press the four pads of the left-hand column.
+            <span class="with-mini"><span class="mini" aria-label="Kick on steps 1, 5, 9 and 13"><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span></span><span class="see">four red-pink pads down the left side, a four-on-the-floor kick.</span></span></span></li>
+          <li><span>Press <kbd>Play</kbd> to launch the clip.
+            <span class="see">an amber light stepping across the pads. That's the playhead, and it turns white as it passes a step that's on.</span></span></li>
+          <li><span><strong>Snare or clap.</strong> Hold <kbd>Record</kbd> and press the third pad on the bottom row (D1, snare) or the fourth (D#1, clap). Let go and press <strong>steps 5 and 13</strong>: the second and fourth pads down the left column. That's the backbeat, on beats 2 and 4.
+            <span class="with-mini"><span class="mini" aria-label="Snare on steps 5 and 13"><span></span><span></span><span></span><span></span><span class="s"></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="s"></span><span></span><span></span><span></span></span><span class="see">two green pads. The kick's steps are gone from view because the pads show one drum at a time; it's still playing.</span></span></span></li>
+          <li><span><strong>Hi-hats.</strong> Hold <kbd>Record</kbd> and press the third pad on the second row up (F#1, closed hat). Let go and press the whole <strong>third column</strong>: steps 3, 7, 11 and 15, the off-beats.
+            <span class="with-mini"><span class="mini" aria-label="Hats on steps 3, 7, 11 and 15"><span></span><span></span><span class="h"></span><span></span><span></span><span></span><span class="h"></span><span></span><span></span><span></span><span class="h"></span><span></span><span></span><span></span><span class="h"></span><span></span></span><span class="see">a light-blue column. You now have a full house/pop groove.</span></span></span></li>
+          <li><span><strong>See it all at once.</strong> Hold <kbd>Record</kbd>, press the kick again, let go, then press and release <kbd>Stop</kbd>.
+            <span class="see">four rows of four steps: kick on the bottom row, then C#1, snare and clap above it, the same order as Live's piano roll. <kbd>&lt;</kbd> <kbd>&gt;</kbd> move along the bar four steps at a time. Press <kbd>Stop</kbd> again to go back.</span></span></li>
+          <li><span><strong>Shape the sound.</strong> The knobs on knob bank 1 turn the Drum Rack's macros. To tweak just the kick (its decay, say), hold <kbd>Stop</kbd> and press <kbd>&gt;</kbd>: the knobs move to the drum you last picked. Hold <kbd>Stop</kbd> and press <kbd>&lt;</kbd> to go back to the rack.</span></li>
+        </ol>
+        <p class="tip"><strong>Mistake?</strong> <kbd>Cmd</kbd>+<kbd>Z</kbd> in Live undoes the last step. The pattern lives in the clip, so saving the set saves it.<br>
+        <strong>Want more bars?</strong> Hold <kbd>Record</kbd> and press <kbd>&gt;</kbd> to add a bar, or <kbd>&lt;</kbd> to remove one. The pads follow the playhead, so each bar shows up as it plays. To edit one ahead of time, press <kbd>&gt;</kbd>.</p>
+      </article>
+
+      <!-- FLOW 2 -->
+      <article class="flow" id="flow-fingers">
+        <div class="flow-head">
+          <span class="eyebrow">Session 2</span>
+          <h3>Finger-drum a fill over the beat</h3>
+          <div class="flow-meta"><span class="chip">Preset 2 · <kbd>PAD BANK</kbd></span><span class="chip">About 2 minutes</span></div>
+        </div>
+        <ol class="steps">
+          <li><span><strong>Arm</strong> the drum track: click its arm button in Live, or use the mixer (<a href="#flow-jam">session 4</a>).</span></li>
+          <li><span>With the beat from session 1 playing, press <kbd>PAD BANK</kbd>.
+            <span class="see">the pads go dark: they're now the Drum Rack's 16 pads, laid out as Live shows them, with C1 (usually the kick) bottom-left. They don't light, but they're velocity-sensitive: hit harder for louder.</span></span></li>
+          <li><span>Play along. Hit a tom run at the end of the bar, or hold a hat pad with the controller's note repeat on for a roll (the repeats come out softer than a hit).</span></li>
+          <li><span>Press <kbd>PAD BANK</kbd> again to go back to the steps.</span></li>
+        </ol>
+        <p class="tip"><strong>Keep what you played.</strong> Press Live's <strong>Capture MIDI</strong> button (next to the record buttons in the control bar) just after playing something you liked. Live adds it to the clip, even though you weren't recording.</p>
+      </article>
+
+      <!-- FLOW 3 -->
+      <article class="flow" id="flow-bass">
+        <div class="flow-head">
+          <span class="eyebrow">Session 3</span>
+          <h3>Add a bassline or chords, and record it</h3>
+          <div class="flow-meta"><span class="chip">Preset 3</span><span class="chip">Preset 1 to record</span><span class="chip">About 10 minutes</span></div>
+        </div>
+        <ol class="steps">
+          <li><span>Put a synth on a new MIDI track, next to the drums. Any instrument works with the knobs: Live's own, a rack or a plugin.</span></li>
+          <li><span><strong>Arm</strong> the synth track. The keyboard always plays the armed track (or one set to Monitor <strong>In</strong>).</span></li>
+          <li><span>Switch to <strong>preset 3</strong> and press <kbd>PAD BANK</kbd> to pick a key. For A minor: press <strong>A</strong> (second row from the top, second pad), then <strong>Scale ‹</strong> or <strong>Scale ›</strong> until Live's status bar names Minor. Live's own Scale setting changes to match. Press <kbd>PAD BANK</kbd> to play.
+            <span class="see">blue pads on the root notes (A), purple on the fifths (E), white on every other note in the scale. Every pad is in key, so nothing you hit sounds wrong.</span></span></li>
+          <li><span><strong>For a bassline</strong>, press <kbd>PAD BANK</kbd>, then <strong>Oct −</strong> once or twice (it shows turquoise, then light blue, then bright blue: the octave it will take you to next), and <kbd>PAD BANK</kbd> again. Start on the bottom-left root and move between it and the purple fifth.</span></li>
+          <li><span><strong>For chords</strong>, use this shape: any pad in the left two columns, the pad two to its right, and the pad diagonally up and to the right of where you started. On a 7-note scale that's always a triad in key. From the bottom-left root it's the root chord, with the purple fifth on top.
+            <span class="with-mini"><span class="mini" aria-label="Chord shape: bottom-left, bottom third, second row second"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="p"></span><span></span><span></span><span class="r"></span><span></span><span class="w"></span><span></span></span><span class="see">from C in C major: C3, E3, G3.</span></span></span></li>
+          <li><span><strong>Shape the sound.</strong> Click the synth so it has Live's blue hand. The knobs now control its main parameters, the same ones Push shows, with no mapping. Knob bank 2 has the next eight. See <a href="#keys-the-knobs">The knobs</a>.</span></li>
+          <li><span><strong>Record it into a clip:</strong>
+            <span class="substep">a. Switch to <strong>preset 1</strong> and press the empty pad in the synth's column. It goes orange: an empty 1-bar clip. Press it again to play it (green).</span>
+            <span class="substep">b. Click Live's <strong>Session Record</strong> button (the circle in the control bar), switch to <strong>preset 3</strong> and play your part. It goes into the looping clip, layer on layer.</span>
+            <span class="substep">c. Click <strong>Session Record</strong> again to stop recording. The clip keeps looping.</span></span></li>
+        </ol>
+        <p class="tip"><strong>Skip the recording dance.</strong> Just jam on preset 3, and when you've played something you like, press Live's <strong>Capture MIDI</strong> button. Live makes a clip of it, already looped and in time.<br>
+        <strong>Want notes outside the scale?</strong> On <kbd>PAD BANK</kbd>, press the blue key again for the <a href="#keys-chromatic-layout">chromatic layout</a>.</p>
+      </article>
+
+      <!-- FLOW 4 -->
+      <article class="flow" id="flow-jam">
+        <div class="flow-head">
+          <span class="eyebrow">Session 4</span>
+          <h3>Jam the track and record it as an arrangement</h3>
+          <div class="flow-meta"><span class="chip">Preset 1 · <kbd>PAD BANK</kbd></span><span class="chip">As long as you like</span></div>
+        </div>
+        <p>Before you start, lay your clips out in Session view so each <strong>row</strong> is a section of the song: say row 1 is the intro (hats only), row 2 the verse (drums and bass), row 3 the chorus (everything). Duplicate a clip into the row below and change it to make variations.</p>
+        <ol class="steps">
+          <li><span>Switch to <strong>preset 1</strong>. Live draws a coloured outline around 4 tracks × 4 rows, and the pads mirror it.
+            <span class="see">orange pads where there are clips, dark where the slots are empty. If your tracks aren't inside the outline, switch to knob bank 2 and turn its bottom two knobs to move it: bottom-left moves across tracks, bottom-right moves up and down rows.</span></span></li>
+          <li><span>Press <kbd>Record</kbd>. Live starts recording into the Arrangement and keeps a copy of everything you launch from here on. Skip this if you just want to jam.</span></li>
+          <li><span><strong>Intro.</strong> Press the pads in the top row to start them.
+            <span class="see">each pad blue, then green on the next bar, when the clip starts.</span></span></li>
+          <li><span><strong>Next section.</strong> Press the pads in the next row down. They take over from the clips above at the start of the next bar, so press them anywhere in the bar before. To drop a part out, press <kbd>PAD BANK</kbd> and that track's pad on the mixer's bottom row: that stops the track. (An empty slot still stops an audio track, but on a MIDI track it makes a new clip.)</span></li>
+          <li><span><strong>A breakdown.</strong> Press <kbd>PAD BANK</kbd> for the mixer. Press the drums' pad in the top row to mute them (it goes dark), play a bar or two, then press it again to bring them back on the one. The second row solos a track and the bottom row stops a track's clip. Press <kbd>PAD BANK</kbd> to get back to your clips.</span></li>
+          <li><span><strong>A filter sweep.</strong> Select a track with <kbd>&lt;</kbd> <kbd>&gt;</kbd>. The knobs on knob bank 1 turn the macros of that track's selected device, usually its first. With an Audio Effect Rack that has Auto Filter's frequency on macro 1, the top-left knob is your sweep.</span></li>
+          <li><span>Press <kbd>Stop</kbd> to finish (Live stops when you let go). Press <kbd>Tab</kbd> in Live to see your performance laid out in Arrangement view, ready to edit.</span></li>
+        </ol>
+        <p class="tip"><strong>Want the mutes and knob moves recorded too?</strong> Turn on Live's <strong>Automation Arm</strong> button (next to the record buttons in the control bar) before you press <kbd>Record</kbd>. Solo isn't recorded; it's a listening aid in Live.<br>
+        <strong>No scene button.</strong> The controller has no button to launch a whole row. Press each pad in the row within the same bar and they all start together.</p>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- QUICK REFERENCE -->
+  <section id="quick">
+    <div class="section-head">
+      <span class="eyebrow">Cheat sheet</span>
+      <h2>I want to…</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>I want to…</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td>Launch a clip</td><td>Preset 1, press its pad</td></tr>
+          <tr><td>Stop one track</td><td>Preset 1, <kbd>PAD BANK</kbd>, its bottom-row pad. Or, on an audio track that isn't armed, press an empty slot in its column</td></tr>
+          <tr><td>Make an empty MIDI clip</td><td>Preset 1, press an empty pad in the track's column. Live makes a 1-bar clip and opens it, like double-clicking the slot</td></tr>
+          <tr><td>Mute, solo or arm a track</td><td>Preset 1, <kbd>PAD BANK</kbd>: top row mutes, second solos, third arms</td></tr>
+          <tr><td>See other tracks or rows on the pads</td><td>Preset 1, knob bank 2, the bottom two knobs</td></tr>
+          <tr><td>Pick a track</td><td><kbd>&lt;</kbd> <kbd>&gt;</kbd> (presets 1 and 3)</td></tr>
+          <tr><td>Tweak a device</td><td>Knob bank 1 turns the selected track's macros. Hold <kbd>Stop</kbd> + <kbd>&lt;</kbd> <kbd>&gt;</kbd> for the next device</td></tr>
+          <tr><td>Program drums step by step</td><td>Preset 2, with a MIDI clip selected</td></tr>
+          <tr><td>Play or stop the pattern</td><td>Preset 2, press <kbd>Play</kbd>. Hold <kbd>Record</kbd> + <kbd>Play</kbd> to stop everything</td></tr>
+          <tr><td>Choose which drum I'm programming</td><td>Preset 2, hold <kbd>Record</kbd> and press the drum's pad</td></tr>
+          <tr><td>See four drums at once</td><td>Preset 2, press <kbd>Stop</kbd></td></tr>
+          <tr><td>Finger-drum</td><td>Preset 2, <kbd>PAD BANK</kbd>, with the track armed</td></tr>
+          <tr><td>Play melodies or chords in key</td><td>Preset 3, with the track armed</td></tr>
+          <tr><td>Change key, scale or octave</td><td>Preset 3, <kbd>PAD BANK</kbd></td></tr>
+          <tr><td>Play notes outside the scale</td><td>Preset 3, <kbd>PAD BANK</kbd>, press the blue key</td></tr>
+          <tr><td>Record into the Arrangement</td><td><kbd>Record</kbd> (presets 1 and 3)</td></tr>
+          <tr><td>Undo</td><td><kbd>Cmd</kbd>+<kbd>Z</kbd> in Live</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h3 id="quick-live-words-used-in-this-guide">Live words used in this guide</h3>
+      <dl class="glossary">
+        <dt>Session view</dt><dd>Live's grid of clips. Tracks are columns, rows are scenes. <kbd>Tab</kbd> switches to Arrangement view and back.</dd>
+        <dt>Coloured outline</dt><dd>The 4 × 4 block of clip slots the pads show on preset 1. Live calls it the session box.</dd>
+        <dt>Arm</dt><dd>A track's record button. An armed track hears the keyboard and drum pads.</dd>
+        <dt>Monitor In</dt><dd>Another way to make a track hear the pads without arming it, in the track's In/Auto/Off switch.</dd>
+        <dt>Macros</dt><dd>The knobs on a Rack (Instrument, Drum or Effect Rack), each mapped to one or more controls inside it. Many of Live's presets come with them mapped.</dd>
+        <dt>Selected device</dt><dd>The device the knobs control, marked in Live with a small blue hand.</dd>
+        <dt>Status bar</dt><dd>The strip at the very bottom of Live's window. The scripts tell you what they did there.</dd>
+        <dt>Launch quantisation</dt><dd>Why clips wait for the next bar before starting or stopping. Set in Live's control bar.</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- SWITCHING -->
+  <section id="switch">
+    <div class="section-head">
+      <span class="eyebrow">The three presets</span>
+      <h2>Switching modes</h2>
+    </div>
+    <p>Hold <kbd>Shift</kbd> and press pad 1, 2 or 3 (the bottom row, from the left) for preset 1, 2 or 3. The scripts stay loaded in Live the whole time, so you don't change anything in Live when you switch.</p>
+    <p>When Live opens, it puts the controller on preset 1 (the clip launcher) with <kbd>PAD BANK</kbd> off, whatever it was left on. That needs <code>MVave_SMC_KNOBS</code> with its output set; see <a href="#setup-ports">Setup</a>.</p>
+    <p>Then the pads say hello: a rainbow runs diagonally across them from pad 1 (bottom-left) to the top-right corner for about 3 seconds, then pad 1 flashes white for about 2 seconds to show you're on preset 1. After that your clips' colours come back. The pads work as normal the whole time. <kbd>Shift</kbd> doesn't light up: there's no known way for the computer to light it. To turn the intro off, set <code>INTRO_ENABLED = False</code> in <code>MVave_SMC_PAD/MIDI_Map.py</code>. <code>INTRO_COLOUR_TICKS</code> in the same file sets how fast the colours move: 1 (the fastest that still shows every colour) or 2 for half speed.</p>
+    <p>Within a preset, <kbd>PAD BANK</kbd> flips the pads between two layouts. The second layout is the <a href="#mixer">mixer</a> on preset 1, <a href="#drums">drum pads</a> on preset 2 and the <a href="#keys-changing-key-scale-and-octave">key and scale settings</a> on preset 3.</p>
+    <div class="modes">
+      <a class="mode" href="#launcher">
+        <span class="slot">Preset 1</span>
+        <strong>Clip launcher</strong>
+        <span>Pads fire clips in Session view and light up with each clip's state.</span>
+      </a>
+      <a class="mode" href="#sequencer">
+        <span class="slot">Preset 2</span>
+        <strong>Step sequencer</strong>
+        <span>Pads become 16 steps of a drum pattern in the selected MIDI clip. <kbd>PAD BANK</kbd> flips to drum pads.</span>
+      </a>
+      <a class="mode" href="#keys">
+        <span class="slot">Preset 3</span>
+        <strong>Keyboard</strong>
+        <span>Play a synth in any key and scale, Launchpad-style, with the knobs on the instrument's main controls.</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- LAUNCHER -->
+  <section id="launcher">
+    <div class="section-head">
+      <span class="eyebrow">Preset 1</span>
+      <h2>Clip launcher</h2>
+    </div>
+    <p>Use this in <strong>Session view</strong>. Live draws a coloured outline around a block of 4 tracks × 4 scenes. The 16 pads are that block, in the same positions on screen: the top-left pad is the top-left slot.</p>
+
+    <div class="split">
+      <figure class="device" style="margin:0" aria-label="Example pad colours in clip-launcher mode">
+        <div class="device-caption"><span>Example</span><span>Session box</span></div>
+        <div class="axis" aria-hidden="true"><span>Trk 1</span><span>Trk 2</span><span>Trk 3</span><span>Trk 4</span></div>
+        <div class="grid">
+          <div class="pad green"></div><div class="pad orange"></div><div class="pad orange"></div><div class="pad off"></div>
+          <div class="pad orange"></div><div class="pad blue"></div><div class="pad off"></div><div class="pad orange"></div>
+          <div class="pad off"></div><div class="pad orange"></div><div class="pad pink"></div><div class="pad off"></div>
+          <div class="pad off"></div><div class="pad off"></div><div class="pad off"></div><div class="pad off"></div>
+        </div>
+        <div class="device-caption"><span>Scene 1 at the top</span><span>Scene 4 at the bottom</span></div>
+      </figure>
+
+      <div class="explain">
+        <h3 id="launcher-what-the-colours-mean">What the colours mean</h3>
+        <ul class="legend">
+          <li><span class="swatch" style="background:var(--c-green)"></span>Playing</li>
+          <li><span class="swatch" style="background:var(--c-orange)"></span>Clip loaded, stopped</li>
+          <li><span class="swatch" style="background:var(--c-blue)"></span>Waiting to start</li>
+          <li><span class="swatch" style="background:var(--c-pink)"></span>Recording</li>
+          <li><span class="swatch" style="background:var(--c-purple)"></span>Waiting to record</li>
+          <li><span class="swatch" style="background:var(--pad-off)"></span>Empty slot</li>
+        </ul>
+        <p>A clip waits for the next bar (Live's launch quantisation) before it starts, so pads go blue first, then green.</p>
+      </div>
+    </div>
+
+    <h3 id="launcher-controls">Controls</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Press or turn</th><th>What happens</th></tr></thead>
+        <tbody>
+          <tr><td>Any pad</td><td>Launches the clip in that slot. On an empty slot of a MIDI track it makes an empty 1-bar clip there, selected and open in clip view, as if you'd double-clicked the slot (armed or not; press it again to play it). On an empty slot of an audio track it stops the track, or records if the track is armed.</td></tr>
+          <tr><td><kbd>Play</kbd> <kbd>Stop</kbd> <kbd>Record</kbd></td><td>Live's transport: play, stop, and arrangement record.</td></tr>
+          <tr><td><kbd>&lt;</kbd> <kbd>&gt;</kbd></td><td>Select the previous or next track.</td></tr>
+          <tr><td>Hold <kbd>Stop</kbd> + <kbd>&lt;</kbd> <kbd>&gt;</kbd></td><td>Move the knobs to the previous or next device on the track. Stop on its own still stops Live, when you let go.</td></tr>
+          <tr><td><kbd>PAD BANK</kbd></td><td>Flips the pads to the <a href="#mixer">mixer</a> and back.</td></tr>
+          <tr><td>Knob bank 1, knobs 1–8</td><td>Macros 1–8 of the selected track's device.</td></tr>
+          <tr><td>Knob bank 2, knob 1</td><td>Move the coloured outline left or right across tracks.</td></tr>
+          <tr><td>Knob bank 2, knob 2</td><td>Move the coloured outline up or down through scenes.</td></tr>
+          <tr><td>Knob bank 2, knobs 3–8</td><td>Macros 9–14 of the same device.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>The macro knobs follow the selected track.</strong> Click another track, or press <kbd>&lt;</kbd> <kbd>&gt;</kbd>, and the same knobs control that track's device. To reach another device on the same track, hold <kbd>Stop</kbd> and press <kbd>&lt;</kbd> <kbd>&gt;</kbd>. Instrument and Effect Racks have macros to map, which makes them the most useful thing to put first on a track.</p>
+  </section>
+
+  <!-- MIXER -->
+  <section id="mixer">
+    <div class="section-head">
+      <span class="eyebrow">Preset 1 · <kbd>PAD BANK</kbd></span>
+      <h2>Mixer</h2>
+    </div>
+    <p>Press <kbd>PAD BANK</kbd> to turn the pads into a mixer for the same 4 tracks the coloured outline covers. Each column is one track, and each row is one switch. Press <kbd>PAD BANK</kbd> again to get your clips back.</p>
+
+    <div class="split">
+      <figure class="device" style="margin:0" aria-label="Example pad colours in mixer mode">
+        <div class="device-caption"><span>Example</span><span>Mixer</span></div>
+        <div class="rows">
+          <span></span>
+          <div class="axis" aria-hidden="true"><span>Trk 1</span><span>Trk 2</span><span>Trk 3</span><span>Trk 4</span></div>
+          <span class="row-label">On</span>
+          <div class="grid">
+            <div class="pad yellow"></div><div class="pad yellow"></div><div class="pad off"></div><div class="pad yellow"></div>
+          </div>
+          <span class="row-label">Solo</span>
+          <div class="grid">
+            <div class="pad off"></div><div class="pad blue"></div><div class="pad off"></div><div class="pad off"></div>
+          </div>
+          <span class="row-label">Arm</span>
+          <div class="grid">
+            <div class="pad off"></div><div class="pad off"></div><div class="pad off"></div><div class="pad pink"></div>
+          </div>
+          <span class="row-label">Stop</span>
+          <div class="grid">
+            <div class="pad purple"></div><div class="pad purple"></div><div class="pad off"></div><div class="pad off"></div>
+          </div>
+        </div>
+        <div class="device-caption"><span>Track 3 muted</span><span>Track 4 armed</span></div>
+      </figure>
+
+      <div class="explain">
+        <h3 id="mixer-what-the-rows-do">What the rows do</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Row</th><th>Press to</th><th>Lit when</th></tr></thead>
+            <tbody>
+              <tr><td><span class="swatch" style="background:var(--c-yellow);display:inline-block;vertical-align:middle"></span> Top</td><td>Mute or unmute</td><td>The track is playing, not muted</td></tr>
+              <tr><td><span class="swatch" style="background:var(--c-blue);display:inline-block;vertical-align:middle"></span> Second</td><td>Solo</td><td>Soloed</td></tr>
+              <tr><td><span class="swatch" style="background:var(--c-pink);display:inline-block;vertical-align:middle"></span> Third</td><td>Arm for recording</td><td>Armed</td></tr>
+              <tr><td><span class="swatch" style="background:var(--c-purple);display:inline-block;vertical-align:middle"></span> Bottom</td><td>Stop the track's clip</td><td>A clip is playing (white while the stop waits for the bar)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The top row works like the track activator buttons in Live's mixer: lit means you hear the track. A dark pad in that row is a muted track.</p>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- SEQUENCER -->
+  <section id="sequencer">
+    <div class="section-head">
+      <span class="eyebrow">Preset 2</span>
+      <h2>Step sequencer</h2>
+    </div>
+    <p>This mode edits the selected MIDI clip directly. Nothing is stored on the controller, so saving the Live set saves the pattern and <kbd>Cmd</kbd>+<kbd>Z</kbd> undoes a step.</p>
+
+    <p>It needs the <code>MVave_SMC_STEPSEQ</code> row from <a href="#setup-ports">Setup</a>.</p>
+
+    <h3 id="sequencer-making-a-beat">Making a beat</h3>
+    <ol class="steps">
+      <li><span>Put a <strong>Drum Rack</strong> on a MIDI track and create an empty clip on it: double-click an empty slot, or press an empty pad in its column on preset 1 (a 1-bar clip).</span></li>
+      <li><span><strong>Select the clip</strong> so its notes show in Live's clip view.</span></li>
+      <li><span>Switch the controller to <strong>preset 2</strong> with <kbd>Shift</kbd> + its pad.</span></li>
+      <li><span>Hold <kbd>Record</kbd>: the pads show the drums you can pick, laid out like the Drum Rack (bottom-left is C1, usually the kick). The drum you're editing is white. Press a pad to choose another.</span></li>
+      <li><span>Let go, then press pads to switch steps on and off. Each pad is one 16th note, reading left to right and top to bottom.</span></li>
+    </ol>
+
+    <div class="split">
+      <figure class="device" style="margin:0" aria-label="Example pad colours in step-sequencer mode">
+        <div class="device-caption"><span>Example</span><span>The kick, 16 steps</span></div>
+        <div class="grid">
+          <div class="pad pink">1</div><div class="pad off">2</div><div class="pad off">3</div><div class="pad off">4</div>
+          <div class="pad pink">5</div><div class="pad amber">6</div><div class="pad off">7</div><div class="pad off">8</div>
+          <div class="pad pink">9</div><div class="pad off">10</div><div class="pad off">11</div><div class="pad pink">12</div>
+          <div class="pad white">13</div><div class="pad off">14</div><div class="pad off">15</div><div class="pad off">16</div>
+        </div>
+        <div class="device-caption"><span>Step 1 top-left</span><span>Step 16 bottom-right</span></div>
+      </figure>
+
+      <div class="explain">
+        <h3 id="sequencer-what-the-colours-mean">What the colours mean</h3>
+        <ul class="legend">
+          <li><span class="swatch" style="background:var(--c-pink)"></span>Step is on, in the drum's colour (see below)</li>
+          <li><span class="swatch" style="background:var(--c-amber)"></span>Playhead</li>
+          <li><span class="swatch" style="background:var(--c-white)"></span>Playhead on a step that's on</li>
+          <li><span class="swatch" style="background:var(--pad-off)"></span>Step is off, or past the end of the loop</li>
+        </ul>
+        <p>While Live plays, the pads follow the playhead, so 32- and 64-step clips need no paging. If you page away, the view jumps back to the playhead when the loop comes round.</p>
+        <p>Live's status bar, at the bottom of the window, names each step you change (<code>Kick (C1) step 5/16 on</code>) and which steps the pads are showing (<code>Steps 17-32 of 64</code>). The <kbd>&lt;</kbd> <kbd>&gt;</kbd> buttons light when there's another page that way.</p>
+      </div>
+    </div>
+
+    <h3 id="sequencer-which-drum-am-i-on">Which drum am I on?</h3>
+    <div class="split">
+      <figure class="device" style="margin:0" aria-label="Example pad colours while Record is held">
+        <div class="device-caption"><span>Example</span><span>Record held</span></div>
+        <div class="grid">
+          <div class="pad off">C2</div><div class="pad yellow">C#2</div><div class="pad off">D2</div><div class="pad off">D#2</div>
+          <div class="pad hat">G#1</div><div class="pad off">A1</div><div class="pad hat">A#1</div><div class="pad off">B1</div>
+          <div class="pad off">E1</div><div class="pad purple">F1</div><div class="pad hat">F#1</div><div class="pad purple">G1</div>
+          <div class="pad white">C1</div><div class="pad green">C#1</div><div class="pad green">D1</div><div class="pad green">D#1</div>
+        </div>
+        <div class="device-caption"><span>C1 bottom-left</span><span>D#2 top-right</span></div>
+      </figure>
+      <div class="explain">
+        <p>Hold <kbd>Record</kbd> and the pads switch from steps to drums, until you let go:</p>
+        <ul class="legend">
+          <li><span class="swatch" style="background:var(--c-white)"></span>The drum you're editing now</li>
+          <li><span class="swatch" style="background:linear-gradient(90deg,var(--c-pink) 0 33%,var(--c-green) 33% 66%,var(--c-yellow) 66%)"></span><span>Every other drum, in its own colour, the same as its steps (see <a href="#sequencer-drum-colours">Drum colours</a>)</span></li>
+          <li><span class="swatch" style="background:var(--pad-off)"></span>An empty Drum Rack pad</li>
+        </ul>
+        <p>While the clip plays, each drum's pad flashes white every time the pattern plays it, so you can watch the kit play along and see which drums are in the pattern. The white pad (the drum you're editing) flashes its own colour instead. Only the clip's playback flashes; hits on the <kbd>PAD BANK</kbd> drum pads don't.</p>
+        <p>Live's status bar, at the bottom of the window, also names the drum, for example <code>Lane C1 (36) Kick</code>, and the range the pads can pick. If no pad is white, the drum you're editing is in another set of 16: hold <kbd>Record</kbd> and <kbd>Stop</kbd> and press <kbd>&lt;</kbd> <kbd>&gt;</kbd> to find it.</p>
+      </div>
+    </div>
+
+    <h3 id="sequencer-controls">Controls</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Press or turn</th><th>What happens</th></tr></thead>
+        <tbody>
+          <tr><td>Any pad</td><td>Switches that step on or off for the current drum.</td></tr>
+          <tr><td>Hold <kbd>Record</kbd></td><td>Shows the drums instead of the steps, with the current one white. See above.</td></tr>
+          <tr><td>Hold <kbd>Record</kbd> + pad</td><td>Chooses which drum you're editing.</td></tr>
+          <tr><td>Hold <kbd>Record</kbd> + <kbd>&lt;</kbd> <kbd>&gt;</kbd></td><td>Makes the clip one bar shorter or longer, from 1 to 16 bars. Live's status bar shows the new length. New bars start empty.</td></tr>
+          <tr><td>Hold <kbd>Record</kbd> + <kbd>Stop</kbd> + <kbd>&lt;</kbd> <kbd>&gt;</kbd></td><td>Moves to the previous or next set of 16 drums. With a Drum Rack it skips sets with no sounds and stops at the end of the kit, so a 16-pad kit doesn't move at all. The status bar says <code>No more drums above …</code> when it stops.</td></tr>
+          <tr><td><kbd>&lt;</kbd> <kbd>&gt;</kbd></td><td>Pages through a long clip, 16 steps at a time. Each one is lit when there's a page that way (while <kbd>Record</kbd> is held: when the clip can get a bar shorter or longer).</td></tr>
+          <tr><td><kbd>Stop</kbd></td><td>Switches to the overview: 4 drums × 4 steps, one drum per row, stacked like Live's clip view: the drum you picked is the bottom row and the next three go upward. <kbd>Stop</kbd> stays lit while the overview is showing. Press again to go back.</td></tr>
+          <tr><td>Hold <kbd>Stop</kbd> + <kbd>&lt;</kbd> <kbd>&gt;</kbd></td><td>Moves the knobs to the previous or next device on the track. The drum you picked with Record comes right after the Drum Rack, so <kbd>Stop</kbd> + <kbd>&gt;</kbd> reaches its own controls.</td></tr>
+          <tr><td><kbd>Play</kbd></td><td>Launches the selected clip, at the next launch-quantise point, and starts Live if it's stopped. <kbd>Play</kbd> stays lit while the clip plays or waits to start. Press again to stop the clip; other clips keep playing. With no clip selected, or an Arrangement clip, it starts or stops Live instead.</td></tr>
+          <tr><td>Hold <kbd>Record</kbd> + <kbd>Play</kbd></td><td>Starts or stops Live itself, which stops every clip.</td></tr>
+          <tr><td><kbd>PAD BANK</kbd></td><td>Flips the pads to <a href="#drums">drum pads</a> and back. See below.</td></tr>
+          <tr><td>Hold <kbd>Shift</kbd> + pad 9, 10, 11 or 12</td><td>Sets how loud new steps are: 40, 70, 100 or 127 (full). These are the controller's own velocity settings 1–4, on the second row from the top. Live's status bar shows the new velocity. Steps already in the clip keep theirs.</td></tr>
+          <tr><td>Knob banks</td><td>Macros, as in the clip launcher. On this preset, bank 2's knobs 1–2 give macros 15–16 instead of moving the outline.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="sequencer-drum-colours">Drum colours</h3>
+    <p>Steps light in the colour of the drum they play, in both views, so you can tell what you're editing at a glance:</p>
+    <ul class="legend">
+      <li><span class="swatch" style="background:var(--c-pink)"></span>Kick</li>
+      <li><span class="swatch" style="background:var(--c-green)"></span>Snare, clap, rim</li>
+      <li><span class="swatch" style="background:var(--c-hat)"></span>Hi-hats</li>
+      <li><span class="swatch" style="background:var(--c-yellow)"></span>Cymbals: crash, ride, china, splash</li>
+      <li><span class="swatch" style="background:var(--c-purple)"></span>Toms</li>
+      <li><span class="swatch" style="background:var(--c-teal)"></span>Anything else</li>
+    </ul>
+    <p>The script goes by the Drum Rack pad's name (usually the sample's), so a pad called <code>Kick 808</code> is a kick wherever it sits. Pads with no sound, or a track with no Drum Rack, go by the standard General MIDI drum notes instead: C1 kick, D1 snare, F#1 hat and so on. The same colours show on the drums while you hold <kbd>Record</kbd>.</p>
+
+    <div class="note">
+      <strong>Step velocity comes from Shift + pad 9–12, not from how hard you hit.</strong>
+      <p>The pads that light up can't sense how hard you hit them, so steps are written at the velocity you pick with <kbd>Shift</kbd> + pad 9–12: 40, 70, 100 or 127. When Live starts, steps are at full velocity (127), whatever the controller was left on, until you pick one. Picking one needs <code>MVave_SMC_KNOBS</code> with its output set (see <a href="#setup-ports">Setup</a>). For softer and louder steps in one pattern, change the velocity between steps, or edit them with the mouse in Live's clip view.</p>
+    </div>
+
+    <h3 id="sequencer-playing-a-synth-over-the-pattern">Playing a synth over the pattern</h3>
+    <p>Start the pattern playing, then switch to <a href="#keys">preset 3</a>, pick your synth track with <kbd>&lt;</kbd> <kbd>&gt;</kbd>, arm it and play. The pattern keeps playing, and the sequencer remembers its clip while you're away: switch back to preset 2 and the pads show your pattern, not the synth track. From your next click in Live it follows the selection again.</p>
+
+    <h3 id="sequencer-playing-over-the-pattern">Playing over the pattern</h3>
+    <p>Press <kbd>PAD BANK</kbd> and the pads play the Drum Rack directly, velocity-sensitive and unlit, so you can play fills over the pattern. Playing a pad doesn't change which drum the steps edit; use <kbd>Record</kbd> + pad for that. The buttons and knobs stay on the sequencer's controls, so <kbd>Play</kbd>, <kbd>Stop</kbd> and the macros still work. Press <kbd>PAD BANK</kbd> again to go back to editing steps.</p>
+    <p>See <a href="#drums">Drum pads</a>. If the step pads are dark or out of date when you come back, start playback or press <kbd>&lt;</kbd> then <kbd>&gt;</kbd> to redraw them.</p>
+  </section>
+
+  <!-- KEYS -->
+  <section id="keys">
+    <div class="section-head">
+      <span class="eyebrow">Preset 3</span>
+      <h2>Keyboard</h2>
+    </div>
+    <p>Like a Launchpad's Note mode: the pads play only the notes of the key and scale you choose, starting from the root at bottom-left. Each row starts three notes of the scale above the row below, so the last pad of a row and the first pad of the next play the same note. Roots light blue, fifths light purple so chord shapes stand out, and the other notes white. <kbd>PAD BANK</kbd> flips to the key and scale settings, and the buttons work as in the clip launcher, so the arrows choose the track you play.</p>
+
+    <p>The pads play at full velocity however hard you hit them, because pads that can light up always send full velocity. It needs <code>MVave_SMC_PAD</code> loaded; see <a href="#setup-ports">Setup</a>.</p>
+
+    <h3 id="keys-playing">Playing</h3>
+    <ol class="steps">
+      <li><span>Put a synth (a VST or one of Live's instruments) on a MIDI track.</span></li>
+      <li><span><strong>Arm</strong> the track, or set its Monitor to <strong>In</strong>. Leave the track's input on <strong>All Ins</strong> and <strong>All Channels</strong>. The keyboard plays on MIDI channel 2, so if your synth only listens to channel 1, set it to omni or channel 2.</span></li>
+      <li><span>Switch the controller to <strong>preset 3</strong> with <kbd>Shift</kbd> + its pad.</span></li>
+      <li><span>Play. Bottom-left is the root note. In C major, the default, the pads run from C3 (middle C) to A4.</span></li>
+    </ol>
+
+    <div class="split">
+      <figure class="device" style="margin:0" aria-label="The key and scale settings on PAD BANK" id="keys-settings">
+        <div class="device-caption"><span><kbd>PAD BANK</kbd></span><span>Key and scale</span></div>
+        <div class="grid">
+          <div class="pad teal">Oct −</div><div class="pad orange">Oct +</div><div class="pad green">Scale ‹</div><div class="pad green">Scale ›</div>
+          <div class="pad purple">G#</div><div class="pad white">A</div><div class="pad purple">A#</div><div class="pad white">B</div>
+          <div class="pad white">E</div><div class="pad white">F</div><div class="pad purple">F#</div><div class="pad white">G</div>
+          <div class="pad blue">C</div><div class="pad purple">C#</div><div class="pad white">D</div><div class="pad purple">D#</div>
+        </div>
+        <div class="device-caption"><span>Blue: current key, press again for chromatic</span><span>Press <kbd>PAD BANK</kbd> to play</span></div>
+      </figure>
+      <figure class="device" style="margin:0" aria-label="Which note each pad plays in C major" id="keys-notes">
+        <div class="device-caption"><span>Notes</span><span data-keys-name>C major</span></div>
+        <div class="grid">
+          <div class="pad white">E4</div><div class="pad white">F4</div><div class="pad purple">G4</div><div class="pad white">A4</div>
+          <div class="pad white">B3</div><div class="pad blue">C4</div><div class="pad white">D4</div><div class="pad white">E4</div>
+          <div class="pad white">F3</div><div class="pad purple">G3</div><div class="pad white">A3</div><div class="pad white">B3</div>
+          <div class="pad blue">C3</div><div class="pad white">D3</div><div class="pad white">E3</div><div class="pad white">F3</div>
+        </div>
+        <div class="device-caption"><span>Blue: root · purple: fifth</span><span>White: in the scale</span></div>
+      </figure>
+    </div>
+
+    <p class="keys-hint">Point at a pad on the key and scale drawing (or tap it) to see the notes the keyboard would play after pressing it.</p>
+
+    <h3 id="keys-changing-key-scale-and-octave">Changing key, scale and octave</h3>
+    <p>Press <kbd>PAD BANK</kbd>. The bottom three rows choose the key: press a note and it lights blue. Press the blue key again to switch layout (below); in the chromatic layout it lights white-blue instead. The top row moves the keyboard down or up an octave and steps back or forward through the scales. Live's status bar, at the bottom of the window, shows the new key, scale, layout and the notes the pads now cover. Press <kbd>PAD BANK</kbd> again to play.</p>
+    <ul class="legend">
+      <li class="wide"><span class="swatch" style="width:72px;background:linear-gradient(90deg,var(--c-purple),var(--c-blue),var(--c-hat),var(--c-teal),var(--c-yellow),var(--c-orange),var(--c-pink),var(--c-white))"></span><span>Each octave pad lights in the colour of the octave it would take you to, on a cold-to-hot scale: purple at the lowest octave, then blue, light blue, turquoise, yellow (octave 3, where it starts, C3 at bottom-left), orange, red-pink, pink, light pink and white at the highest. At the start, <strong>Oct −</strong> is turquoise and <strong>Oct +</strong> orange. A pad goes dark when you can't go further that way.</span></li>
+    </ul>
+    <p>The key and scale are the same ones as Live's <strong>Scale</strong> setting in the control bar. Change them on the controller and Live follows; change them in Live and the pads follow.</p>
+    <p>The scales, in order: Major, Minor, Dorian, Mixolydian, Lydian, Phrygian, Locrian, Harmonic Minor, Melodic Minor, Major Pentatonic, Minor Pentatonic and Minor Blues. The list goes round, and when you get back to Major the scale pad you pressed flickers white three times, so you know you're at the start.</p>
+
+    <h3 id="keys-chromatic-layout">Chromatic layout</h3>
+    <div class="split">
+      <figure class="device" style="margin:0" aria-label="The chromatic layout in C major">
+        <div class="device-caption"><span>Chromatic</span><span>C major</span></div>
+        <div class="grid">
+          <div class="pad blue">C4</div><div class="pad off">C#4</div><div class="pad white">D4</div><div class="pad off">D#4</div>
+          <div class="pad off">G#3</div><div class="pad white">A3</div><div class="pad off">A#3</div><div class="pad white">B3</div>
+          <div class="pad white">E3</div><div class="pad white">F3</div><div class="pad off">F#3</div><div class="pad purple">G3</div>
+          <div class="pad blue">C3</div><div class="pad off">C#3</div><div class="pad white">D3</div><div class="pad off">D#3</div>
+        </div>
+        <div class="device-caption"><span>Dark: outside the scale</span><span>Still plays</span></div>
+      </figure>
+      <div class="explain">
+        <p>Like a Launchpad's chromatic mode: every pad is one semitone up from the last, starting from the key at bottom-left, so the 16 pads cover an octave and a bit. The scale stays lit in the same colours, and the notes outside it are dark but still play, for passing notes and chromatic runs.</p>
+        <p>It works with any key and scale. To switch, press <kbd>PAD BANK</kbd> and press the blue key: it turns white-blue while you're in chromatic. Press it again to go back to playing in key.</p>
+      </div>
+    </div>
+
+    <h3 id="keys-note-repeat">Note repeat</h3>
+    <p>The controller's note repeat follows the keyboard: hold a pad and it repeats the note that pad plays, in the current key, scale, octave and layout. The repeats come out quieter than a normal hit, because the controller sends them at a low velocity of its own. Note repeat needs <code>MVave_SMC_KNOBS</code> loaded, and <strong>Track</strong> off for <code>SINCO SMC-PAD-Master</code>; see <a href="#setup-ports">Setup</a>.</p>
+
+    <h3 id="keys-the-knobs">The knobs</h3>
+    <p>On this preset the knobs control the device that has Live's blue hand: click a device (or its track) and the knobs follow. They're the parameters Ableton picked for its own controllers, so Live's instruments and effects work with no mapping.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Device</th><th>Knob bank 1</th><th>Knob bank 2</th></tr></thead>
+        <tbody>
+          <tr><td>Live's instruments and effects</td><td>Live's first bank of 8 (the main controls)</td><td>Live's second bank</td></tr>
+          <tr><td>Racks</td><td>Macros 1–8</td><td>Macros 9–16</td></tr>
+          <tr><td>Plugins (VST/AU)</td><td>Parameters 1–8 of the plugin's list</td><td>Parameters 9–16</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Knobs run left to right, top to bottom: the top-left knob is the first parameter. Turning one never makes the parameter jump, even after switching devices.</p>
+    <p><strong>To choose a plugin's knobs:</strong> click the triangle on the plugin's title bar to unfold its parameters, click <strong>Configure</strong>, then touch the controls you want in the plugin's window, in the order you want them on the knobs. Click Configure again to finish. Live saves the list with the set.</p>
+
+    <div class="note">
+      <strong>If the knobs do nothing</strong>
+      <p>Click the device you want so it has the blue hand. If they still do nothing, import the current <code>preset3-keys.spc</code> again with MidiSuite: an older one sends knob messages this version doesn't use.</p>
+    </div>
+  </section>
+
+  <!-- DRUMS -->
+  <section id="drums">
+    <div class="section-head">
+      <span class="eyebrow">Preset 2's <kbd>PAD BANK</kbd></span>
+      <h2>Drum pads</h2>
+    </div>
+    <p>On the step sequencer's second pad bank, the pads play a Drum Rack directly, and they're velocity-sensitive: hit harder for louder. They don't light up, because the pads Live can light always send full velocity. The buttons and knobs stay on the sequencer's controls.</p>
+
+    <p>It needs <code>MVave_SMC_KNOBS</code> loaded, and the track's input on <strong>All Ins</strong>; see <a href="#setup-ports">Setup</a>. The notes arrive on MIDI channel 2.</p>
+
+    <h3 id="drums-playing">Playing</h3>
+    <ol class="steps">
+      <li><span>Put a <strong>Drum Rack</strong> on a MIDI track.</span></li>
+      <li><span><strong>Arm</strong> the track, or set its Monitor to <strong>In</strong>. Leave the track's input on <strong>All Ins</strong> and <strong>All Channels</strong>.</span></li>
+      <li><span>Switch the controller to <strong>preset 2</strong> with <kbd>Shift</kbd> + its pad, and press <kbd>PAD BANK</kbd>.</span></li>
+      <li><span>Play. The pads match the Drum Rack's 16 pads as Live shows them: bottom-left is C1, usually the kick.</span></li>
+    </ol>
+
+    <div class="split">
+      <figure class="device" style="margin:0" aria-label="Which Drum Rack note each pad plays">
+        <div class="device-caption"><span>Notes</span><span>Same as Drum Rack</span></div>
+        <div class="grid">
+          <div class="pad off">C2</div><div class="pad off">C#2</div><div class="pad off">D2</div><div class="pad off">D#2</div>
+          <div class="pad off">G#1</div><div class="pad off">A1</div><div class="pad off">A#1</div><div class="pad off">B1</div>
+          <div class="pad off">E1</div><div class="pad off">F1</div><div class="pad off">F#1</div><div class="pad off">G1</div>
+          <div class="pad off">C1</div><div class="pad off">C#1</div><div class="pad off">D1</div><div class="pad off">D#1</div>
+        </div>
+        <div class="device-caption"><span>C1 bottom-left</span><span>D#2 top-right</span></div>
+      </figure>
+      <div class="explain">
+        <h3 id="drums-recording-a-beat">Recording a beat</h3>
+        <p>Arm the track and click the record button in an empty clip slot, or use Live's session record. (On preset 1 an empty pad makes an empty 1-bar clip rather than recording: play it and turn on Session Record to record into it.) Or just play, then press Live's <strong>Capture MIDI</strong> button. Velocities go in as you played them.</p>
+        <p>To tidy the timing afterwards, select the notes in Live's clip view and press <kbd>Cmd</kbd>+<kbd>U</kbd> to quantise.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SETUP -->
+  <section id="setup">
+    <div class="section-head">
+      <span class="eyebrow">Once, before you start</span>
+      <h2>Setup: which file goes where</h2>
+    </div>
+    <p>Three things need to be in place: the presets on the controller, the scripts in Live's folder, and the ports in Live's settings. Paths below are inside the project folder unless they start with <code>/</code>.</p>
+    <p>These steps are for this Mac's setup. On Windows, or with Live's User Library somewhere else, follow <a href="INSTALL.md">INSTALL.md</a> instead: it has the paths and port names for both, and how to check it worked.</p>
+
+    <h3 id="setup-presets">1. Presets on the controller</h3>
+    <p>Open MidiSuite, M-Vave's editor. Import each file and write it to its preset slot.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>File</th><th>Preset slot</th><th>Gives you</th></tr></thead>
+        <tbody>
+          <tr><td><code>presets/<wbr>preset1-launcher-mixer.spc</code></td><td>Preset 1</td><td>Clip launcher; <kbd>PAD BANK</kbd> → mixer</td></tr>
+          <tr><td><code>presets/<wbr>preset2-sequencer-drums.spc</code></td><td>Preset 2</td><td>Step sequencer; <kbd>PAD BANK</kbd> → drum pads</td></tr>
+          <tr><td><code>presets/<wbr>preset3-keys.spc</code></td><td>Preset 3</td><td>Scale keyboard and device knobs; <kbd>PAD BANK</kbd> → key and scale</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only load files from <code>presets</code>. The <code>reference</code> folder holds the files the presets are built from (<code>tools/make_presets.py</code> rebuilds them) and the original editor exports.</p>
+
+    <h3 id="setup-scripts">2. Scripts in Live's folder</h3>
+    <p>Copy these three folders into <code>/Users/Shared/Ableton/User Library/Remote Scripts/</code>, replacing any older copies, then restart Live:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Folder</th><th>Runs</th></tr></thead>
+        <tbody>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>PAD</code></td><td>Pads, buttons and lights for presets 1 and 3: clips, the mixer and the keyboard</td></tr>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>KNOBS</code></td><td>The knobs on every preset, preset 2's drum pads and preset 3's note repeat</td></tr>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>STEPSEQ</code></td><td>Preset 2's step sequencer</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>All three are needed: <code>MVave_SMC_KNOBS</code> also passes preset 2's drum pads and note repeat to your tracks, and runs preset 3's knobs.</p>
+
+    <h3 id="setup-ports">3. Ports in Live</h3>
+    <p>Open <strong>Settings → Link, Tempo &amp; MIDI</strong>. Fill three Control Surface rows:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Control Surface</th><th>Input</th><th>Output</th></tr></thead>
+        <tbody>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>PAD</code></td><td><code>SINCO Port&nbsp;3</code></td><td><code>SINCO Port&nbsp;3</code></td></tr>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>KNOBS</code></td><td><code>SINCO SMC-PAD-Private</code></td><td><code>SINCO SMC-PAD-Private</code></td></tr>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>STEPSEQ</code></td><td><code>SINCO Port&nbsp;3</code></td><td><code>SINCO Port&nbsp;3</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Then in the MIDI Ports list below the table, find the input <code>SINCO SMC-PAD-Master</code>, switch on <strong>Remote</strong> (so you can still map knobs with <kbd>Cmd</kbd>+<kbd>M</kbd>) and leave <strong>Track</strong> <em>off</em>. Leave it out of the Control Surface rows.</p>
+    <p>Preset 2's drum pads and note repeat reach your tracks through <code>MVave_SMC_KNOBS</code>, on MIDI channel 2. With Track on they'd play twice, and note repeat would ignore the keyboard's key and octave.</p>
+  </section>
+
+  <!-- TROUBLESHOOTING -->
+  <section id="trouble">
+    <div class="section-head">
+      <span class="eyebrow">Quick fixes</span>
+      <h2>If something's off</h2>
+    </div>
+    <div class="trouble">
+      <div class="panel">
+        <h3 id="trouble-pads-do-nothing">Pads do nothing</h3>
+        <p>Check you're on the right preset for what you're doing. Remember <kbd>PAD BANK</kbd> flips the pads to a second layout: the mixer on preset 1, drum pads on preset 2, key and scale on preset 3. Drum pads and the keyboard only play into an armed track (or one set to Monitor In).</p>
+      </div>
+      <div class="panel">
+        <h3 id="trouble-pads-stay-dark-in-the-launcher">Pads stay dark in the launcher</h3>
+        <p>Pads only light where there's a clip inside the coloured outline. Move the outline with the bottom two knobs on knob bank 2, or restart Live to reload the script.</p>
+      </div>
+      <div class="panel">
+        <h3 id="trouble-sequencer-pads-stay-dark">Sequencer pads stay dark</h3>
+        <p>Select a MIDI clip first. The sequencer edits whichever clip is selected, and with none selected it has nothing to show.</p>
+      </div>
+      <div class="panel">
+        <h3 id="trouble-drum-pads-or-keyboard-make-no-sound">Drum pads or keyboard make no sound</h3>
+        <p>Check the track is armed or set to Monitor In, with its input on <strong>All Ins</strong>, and that a synth set to one MIDI channel listens on channel 2 (or omni). Drum pads, note repeat and preset 3's knobs need <code>MVave_SMC_KNOBS</code> on input <code>SINCO SMC-PAD-Private</code>. The keyboard needs <code>MVave_SMC_PAD</code> in a Control Surface row on <code>SINCO Port 3</code>; if its pads stay dark, check that row and restart Live.</p>
+      </div>
+      <div class="panel">
+        <h3 id="trouble-empty-pads-show-white">Empty pads show white</h3>
+        <p>The preset on the controller doesn't match the scripts. In MidiSuite, M-Vave's editor, import the right file from the <code>presets</code> folder again: <code>preset1-launcher-mixer.spc</code> (preset 1), <code>preset2-sequencer-drums.spc</code> (preset 2) or <code>preset3-keys.spc</code> (preset 3).</p>
+      </div>
+      <div class="panel">
+        <h3 id="trouble-old-lights-stay-after-switching">Old lights stay after switching</h3>
+        <p>The pads should redraw within about a fifth of a second of a preset switch or <kbd>PAD BANK</kbd>, or the moment you touch a pad. That needs <code>MVave_SMC_KNOBS</code> with both input and output on <code>SINCO SMC-PAD-Private</code>: it asks the controller which preset is up about five times a second. If they don't redraw, check that output isn't None, then the input, then restart Live.</p>
+        <p>The steady blinking of Live's MIDI light is those questions. It's a few hundred bytes a second, nothing the USB connection notices.</p>
+      </div>
+      <div class="panel">
+        <h3 id="trouble-pads-launch-the-wrong-clips">Pads launch the wrong clips</h3>
+        <p>If every pad fires the clip three pads along and the last pads stay white, the controller holds a preset file from before 8 October 2026. Import all three files from <code>presets</code> again and save them to the controller.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Set up for one specific configuration: preset 1 <code>preset1-launcher-mixer.spc</code>, preset 2 <code>preset2-sequencer-drums.spc</code>, preset 3 <code>preset3-keys.spc</code>, scripts in <code>/Users/Shared/Ableton/User Library/Remote Scripts/</code>.
+  </footer>
+
+</div>
+</div>
+
+<script>
+// Contents column: add each section's subheadings under its link, and mark
+// where the reader is. Without this script the column still lists the sections.
+(function () {
+  var toc = document.querySelector('.toc');
+  if (!toc) return;
+  var entries = [];   // { heading, link, item }, in page order
+
+  function slug(text) {
+    return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  toc.querySelectorAll(':scope > ol > li').forEach(function (item) {
+    var link = item.querySelector('a');
+    var section = document.querySelector(link.getAttribute('href'));
+    if (!section) return;
+    entries.push({ heading: section, link: link, item: item });
+    var subs = section.querySelectorAll('h3');
+    if (!subs.length) return;
+    var list = document.createElement('ol');
+    subs.forEach(function (h3) {
+      // A walkthrough's title links to the walkthrough's own id; any other
+      // subheading gets one derived from its section and its text.
+      var owner = h3.closest('article[id]');
+      var target = owner && owner.querySelector('h3') === h3 ? owner : h3;
+      if (!target.id) {
+        var id = section.id + '-' + slug(h3.textContent), n = 2;
+        while (document.getElementById(id)) id = section.id + '-' + slug(h3.textContent) + '-' + n++;
+        target.id = id;
+      }
+      var li = document.createElement('li');
+      var a = document.createElement('a');
+      a.href = '#' + target.id;
+      a.textContent = h3.textContent;
+      li.appendChild(a);
+      list.appendChild(li);
+      entries.push({ heading: target, link: a, item: item });
+    });
+    item.appendChild(list);
+  });
+
+  // A link to a subheading's id arrives before this script has made the id,
+  // so the browser had nothing to jump to. Jump now.
+  if (location.hash) {
+    var landing = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (landing) landing.scrollIntoView({ behavior: 'instant' });
+  }
+
+  var current = null;
+  function update() {
+    var line = window.innerHeight * 0.25;
+    var found = null, foundTop = -Infinity;
+    for (var i = 0; i < entries.length; i++) {
+      var top = entries[i].heading.getBoundingClientRect().top;
+      if (top > line) break;
+      // Cards side by side share a top; the first in the row wins.
+      if (top > foundTop + 1) { found = entries[i]; foundTop = top; }
+    }
+    // At the very bottom the last headings can never reach the line.
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+      found = entries[entries.length - 1];
+    }
+    found = found || entries[0];
+    if (found === current) return;
+    current = found;
+    toc.querySelectorAll('a.active').forEach(function (a) { a.classList.remove('active'); });
+    toc.querySelectorAll('li.open').forEach(function (li) { li.classList.remove('open'); });
+    found.link.classList.add('active');
+    found.item.classList.add('open');
+    found.item.querySelector('a').classList.add('active');
+    // Keep the active link visible in a contents list taller than the window,
+    // scrolling only the list: scrollIntoView would move the page as well.
+    var box = toc.getBoundingClientRect(), r = found.link.getBoundingClientRect();
+    if (r.top < box.top) toc.scrollTop -= box.top - r.top + 8;
+    else if (r.bottom > box.bottom) toc.scrollTop += r.bottom - box.bottom + 8;
+  }
+
+  var queued = false;
+  window.addEventListener('scroll', function () {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () { queued = false; update(); });
+  }, { passive: true });
+  window.addEventListener('resize', update);
+  update();
+})();
+</script>
+<script>
+// Keyboard preview: pointing at (or tapping) a pad on the key and scale
+// drawing redraws the notes drawing as the keyboard would play after that
+// press. Same layout rules as MVave_SMC_PAD/KeysLayout.py; the page starts
+// on the defaults (C major, octave 3, in key). Without this script the
+// drawings stay as they are.
+(function () {
+  var notes = document.getElementById('keys-notes');
+  var settings = document.getElementById('keys-settings');
+  if (!notes || !settings) return;
+  var SCALES = [
+    ['major', [0, 2, 4, 5, 7, 9, 11]], ['minor', [0, 2, 3, 5, 7, 8, 10]],
+    ['Dorian', [0, 2, 3, 5, 7, 9, 10]], ['Mixolydian', [0, 2, 4, 5, 7, 9, 10]],
+    ['Lydian', [0, 2, 4, 6, 7, 9, 11]], ['Phrygian', [0, 1, 3, 5, 7, 8, 10]],
+    ['Locrian', [0, 1, 3, 5, 6, 8, 10]], ['harmonic minor', [0, 2, 3, 5, 7, 8, 11]],
+    ['melodic minor', [0, 2, 3, 5, 7, 9, 11]], ['major pentatonic', [0, 2, 4, 7, 9]],
+    ['minor pentatonic', [0, 3, 5, 7, 10]], ['minor blues', [0, 3, 5, 6, 7, 10]]
+  ];
+  var NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  var START = { root: 0, scale: 0, octave: 3, chromatic: false };
+  var COLOURS = ['blue', 'ice', 'purple', 'white', 'off', 'teal', 'orange', 'green'];
+
+  // Settings pads in page order are the top row first; PAD1 is bottom-left.
+  var setPads = Array.prototype.slice.call(settings.querySelectorAll('.pad'));
+  var notePads = Array.prototype.slice.call(notes.querySelectorAll('.pad'));
+  var nameLabel = notes.querySelector('[data-keys-name]');
+  function padIndex(i) { return (3 - Math.floor(i / 4)) * 4 + i % 4; }
+
+  function noteOf(index, st) {
+    var iv = st.chromatic ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : SCALES[st.scale][1];
+    var step = iv.length >= 12 ? 4 : 3;
+    var pos = Math.floor(index / 4) * step + index % 4;
+    var n = 12 * (st.octave + 2) + st.root + 12 * Math.floor(pos / iv.length) + iv[pos % iv.length];
+    return n >= 0 && n <= 127 ? n : null;
+  }
+  function colourOf(n, st) {
+    if (n === null) return 'off';
+    var off = ((n - st.root) % 12 + 12) % 12;
+    if (off === 0) return 'blue';
+    if (SCALES[st.scale][1].indexOf(off) < 0) return 'off';
+    return off === 7 ? 'purple' : 'white';
+  }
+  function setColour(el, c) {
+    COLOURS.forEach(function (k) { el.classList.remove(k); });
+    el.classList.add(c);
+  }
+
+  function draw(st) {
+    notePads.forEach(function (el, i) {
+      var n = noteOf(padIndex(i), st);
+      el.textContent = n === null ? '' : NAMES[n % 12] + (Math.floor(n / 12) - 2);
+      setColour(el, colourOf(n, st));
+    });
+    nameLabel.textContent = NAMES[st.root] + ' ' + SCALES[st.scale][0] +
+      (st.chromatic ? ', chromatic' : '') + (st.octave !== 3 ? ', octave ' + st.octave : '');
+    setPads.forEach(function (el, i) {
+      var index = padIndex(i);
+      if (index < 12) setColour(el, index === st.root ? (st.chromatic ? 'ice' : 'blue') : NAMES[index].length > 1 ? 'purple' : 'white');
+    });
+  }
+
+  // The state after pressing settings pad `index` from the start.
+  function after(index) {
+    var st = { root: START.root, scale: START.scale, octave: START.octave, chromatic: START.chromatic };
+    if (index < 12 && index === st.root) st.chromatic = !st.chromatic;
+    else if (index < 12) st.root = index;
+    else if (index === 12) st.octave = Math.max(-1, st.octave - 1);
+    else if (index === 13) st.octave = Math.min(8, st.octave + 1);
+    else st.scale = (st.scale + (index === 15 ? 1 : SCALES.length - 1)) % SCALES.length;
+    return st;
+  }
+
+  var showing = null;
+  function preview(el) {
+    if (showing) showing.classList.remove('previewing');
+    showing = el;
+    el.classList.add('previewing');
+    notes.classList.add('previewing');
+    draw(after(padIndex(setPads.indexOf(el))));
+  }
+  function reset() {
+    if (showing) showing.classList.remove('previewing');
+    showing = null;
+    notes.classList.remove('previewing');
+    draw(START);
+  }
+
+  // A mouse previews by hovering, a keyboard by focusing, and a touch screen
+  // (no hover) by tapping: tap again, or anywhere else, to put it back.
+  var pointer = null;
+  setPads.forEach(function (el) {
+    el.tabIndex = 0;
+    el.setAttribute('role', 'button');
+    el.addEventListener('pointerenter', function (e) { if (e.pointerType === 'mouse') preview(el); });
+    el.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') reset(); });
+    el.addEventListener('pointerdown', function (e) { pointer = e.pointerType; });
+    el.addEventListener('focus', function () { if (!pointer) preview(el); });
+    el.addEventListener('blur', reset);
+    el.addEventListener('click', function () {
+      var touch = pointer && pointer !== 'mouse';
+      pointer = null;
+      if (!touch) return;
+      if (showing === el) { el.blur(); reset(); } else preview(el);
+    });
+  });
+})();
+</script>

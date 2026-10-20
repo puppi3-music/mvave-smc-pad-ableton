@@ -27,6 +27,8 @@
 from __future__ import with_statement
 
 import math
+import re
+import sys
 import traceback
 
 import Live
@@ -55,6 +57,17 @@ LANE_BANK_MAX = ((112 - LANE_SELECT_BASE) // 16
                  + (1 if (112 - LANE_SELECT_BASE) % 16 else 0))
 
 
+def _tell_knobs(midi_bytes):
+    # Hands MVave_SMC_KNOBS each message, so a press from another preset's
+    # layout makes it check for a switch at once (its LAYOUTS_BY_NOTE).
+    # Optional: a dict lookup when the knobs script isn't loaded.
+    module = sys.modules.get('MVave_SMC_KNOBS.MVave_SMC_KNOBS')
+    if module is None:
+        return
+    for knobs in getattr(module.MVave_SMC_KNOBS, '_active_instances', None) or ():
+        knobs.port3_message(midi_bytes)
+
+
 def _clamp(value, low, high):
     return max(low, min(value, high))
 
@@ -81,6 +94,35 @@ def lane_for_pad(pad_index, base=LANE_SELECT_BASE):
     """
     row, col = divmod(pad_index, 4)
     return base + (3 - row) * 4 + col
+
+
+NOTE_NAMES = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
+
+
+def note_name(pitch):
+    """Live's spelling of a pitch: 36 is C1, 60 is C3."""
+    return '%s%d' % (NOTE_NAMES[pitch % 12], pitch // 12 - 2)
+
+
+def drum_color(pitch, name=''):
+    """What colour a drum's steps light: its kind from the pad name, else GM.
+
+    A non-empty name decides on its own -- a pad called "Bongo" on pitch 36 is
+    'other', not a kick -- because the name is what the user sees in the rack.
+    The General MIDI map only stands in when there is no name to go on.
+    """
+    if name:
+        lowered = name.lower()
+        words = set(re.split('[^a-z0-9]+', lowered))
+        for kind, color, keys, pitches in DRUM_KINDS:
+            for key in keys:
+                if key in words or (len(key) >= 3 and key in lowered):
+                    return color
+        return COLOR_DRUM_OTHER
+    for kind, color, keys, pitches in DRUM_KINDS:
+        if pitch in pitches:
+            return color
+    return COLOR_DRUM_OTHER
 
 
 def step_at(time, loop_start, step_length=STEP):
@@ -129,12 +171,19 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         # half-built object. Nothing here touches the Live API.
         self._ready = False
         self._clip = None
+        # True while another preset is on the controller (MVave_SMC_KNOBS
+        # says so). The sequencer then keeps its clip however the selection
+        # moves, so playing preset 3 on another track and coming back finds
+        # the pattern still on the pads.
+        self._pinned = False
         self._view = VIEW_FOCUS
         self._lane = DEFAULT_LANE
         self._bank = 0
         self._lane_window = DEFAULT_LANE
         self._page = 0
         self._mod = False
+        self._view_held = False                 # VIEW is also a modifier
+        self._view_combo = False                # an arrow was used while held
         self._follow = FOLLOW_PLAYHEAD
         # Clamped exactly as _lane_base_by derives it at bank 0, so the two
         # cannot start out of step. Writing the raw constant here put every
@@ -143,7 +192,11 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         self._lane_base = _clamp(LANE_SELECT_BASE, 0, 112)
         self._lane_bank = 0                     # MOD + arrow moves this, not the base
         self._paint_velocity = PAINT_VELOCITY
+        self._velocity_setting = None           # the device's, 0-3, once known
         self._btn_led = {}                      # what each button was last told
+        self._lane_arrows = (False, False)      # MOD + '<' / '>' would move
+        self._picker_hits = {}                  # MOD held: step -> pads it plays
+        self._picker_flash = {}                 # MOD held: pad -> flash colour
         self._grid = [COLOR_STEP_OFF] * 16      # what the clip says
         self._on = [False] * 16                 # which of those hold a note
         self._led = [None] * 16                 # what the device was last told
@@ -231,6 +284,7 @@ class MVave_SMC_STEPSEQ(ControlSurface):
 
     def receive_midi(self, midi_bytes):
         try:
+            _tell_knobs(midi_bytes)
             if self._dispatch(midi_bytes):
                 return
         except Exception:
@@ -314,7 +368,43 @@ class MVave_SMC_STEPSEQ(ControlSurface):
 
     @_guarded('selection listener')
     def _on_selection_changed(self):
+        if self._pinned and self._clip_alive():
+            return
         self._rebind()
+
+    def _clip_alive(self):
+        # A deleted clip raises on the first attribute read.
+        if self._clip is None:
+            return False
+        try:
+            self._clip.is_midi_clip
+            return True
+        except Exception:
+            return False
+
+    @_guarded('preset switch')
+    def set_on_screen(self, on_screen):
+        """Called by MVave_SMC_KNOBS when the controller switches to preset 2
+        (True) or away from it (False). Away, the clip is pinned; back, the
+        sequencer follows the selection again from the next change. A clip
+        deleted while away is replaced by whatever is selected."""
+        self._pinned = not on_screen
+        if on_screen and not self._clip_alive():
+            self._rebind()
+
+    @_guarded('velocity setting')
+    def set_velocity_setting(self, setting):
+        """Called by MVave_SMC_KNOBS when the controller's VELOCITY setting
+        changes, 0-3 for Shift + pad 9-12 (not with the one it starts on). New
+        steps are written at its level; steps already in the clip keep theirs."""
+        setting = _clamp(setting, 0, len(VELOCITY_LEVELS) - 1)
+        if setting == self._velocity_setting:
+            return
+        self._velocity_setting = setting
+        self._paint_velocity = VELOCITY_LEVELS[setting]
+        if not self._pinned:
+            self._message('Steps: velocity %d (VELOCITY %d)'
+                          % (self._paint_velocity, setting + 1))
 
     def _detach_clip(self):
         clip = self._clip
@@ -331,8 +421,8 @@ class MVave_SMC_STEPSEQ(ControlSurface):
                 clip.remove_notes_listener(self._on_notes_changed)
             if clip.playing_position_has_listener(self._on_playhead):
                 clip.remove_playing_position_listener(self._on_playhead)
-            if clip.playing_status_has_listener(self._on_playhead):
-                clip.remove_playing_status_listener(self._on_playhead)
+            if clip.playing_status_has_listener(self._on_play_status):
+                clip.remove_playing_status_listener(self._on_play_status)
             self._detach_loop_listeners(clip)
         except Exception:
             pass
@@ -365,7 +455,7 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         if clip is not None:
             clip.add_notes_listener(self._on_notes_changed)
             clip.add_playing_position_listener(self._on_playhead)
-            clip.add_playing_status_listener(self._on_playhead)
+            clip.add_playing_status_listener(self._on_play_status)
             self._attach_loop_listeners(clip)
         self._clip = clip
         self._clamp_pages()
@@ -408,6 +498,11 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         # The brace moved: the visible page may now be past the end of the loop,
         # and the steps beyond it have to go dark.
         self._clamp_pages()
+        # So may the playhead, which _on_playhead re-checks only when the step
+        # moves. Dropped as it would drop a playhead leaving the loop.
+        if self._playhead is not None and self._playhead >= self._step_count():
+            self._playhead = None
+            self._follow = FOLLOW_PLAYHEAD
         self._render()
 
     # ------------------------------------------------------------ write path
@@ -431,13 +526,18 @@ class MVave_SMC_STEPSEQ(ControlSurface):
             return
         time = clip.loop_start + step_index * STEP
         existing = clip.get_notes_extended(pitch, 1, time, STEP)
-        if len(existing):
+        added = not len(existing)
+        if not added:
             clip.remove_notes_extended(pitch, 1, time, STEP)
         else:
             spec = Live.Clip.MidiNoteSpecification(
                 pitch=pitch, start_time=time, duration=STEP,
                 velocity=(velocity or self._paint_velocity), mute=False)
             clip.add_new_notes((spec,))
+        if SHOW_STEP_MESSAGES:
+            self._message('%s step %d/%d %s'
+                          % (self._lane_label(pitch), step_index + 1,
+                             self._step_count(), 'on' if added else 'off'))
         # Deliberately no render. The clip's notes listener fires on the change
         # and renders -- the same path a mouse edit or a Ctrl+Z takes, so all
         # three produce identical LEDs. Rendering here would double the work and
@@ -454,31 +554,65 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         # Push-style: how hard you hit the pad becomes the step's velocity.
         # None when the caller has none to offer -- the self-test, and the
         # sibling-script entry point -- in which case the knob/default stands.
-        strike = velocity if (USE_STRIKE_VELOCITY and velocity) else None
+        # The device's VELOCITY setting, once known, stands instead.
+        strike = velocity if (USE_STRIKE_VELOCITY and velocity
+                              and self._velocity_setting is None) else None
         if self._view == VIEW_FOCUS:
             self.toggle_step(self._lane, self._bank * 16 + index, strike)
         else:
             row, col = divmod(index, 4)
-            self.toggle_step(self._lane_window + row, self._page * 4 + col, strike)
+            self.toggle_step(self._lane_window + (3 - row), self._page * 4 + col,
+                             strike)
 
     def _on_button(self, number, pressed):
         if number == BTN_MOD:
+            # Held, the pads show the lane picker; released, the steps again.
             self._mod = pressed
-            self._paint_buttons()       # lights while held, clears on release
+            if pressed:
+                self._show_lane()
+            self._render()              # also lights MOD while held
+            return
+        if number == BTN_VIEW:
+            # Toggles on release, not press, because VIEW + arrow moves between
+            # devices and that press must not also flip the grid.
+            if pressed:
+                self._view_held, self._view_combo = True, False
+            elif self._view_held:
+                self._view_held = False
+                if not self._view_combo:
+                    self._toggle_view()
+            # With MOD held, VIEW switches the arrows between clip length and
+            # lane bank, so their LEDs change with it.
+            self._paint_buttons()
             return
         if not pressed:
             return
-        if number == BTN_VIEW:
-            self._toggle_view()
-        elif number == BTN_PLAY:
-            self._toggle_transport()
+        if number == BTN_PLAY:
+            # MOD + play is the way to stop everything, now that play on its
+            # own launches the clip.
+            if self._mod:
+                self._toggle_transport()
+            else:
+                self._toggle_clip()
         elif number == BTN_LEFT:
             # Held MOD turns the arrows into a lane-bank control, because
             # MOD + pad only reaches the 16 pitches from _lane_base and a drum
             # rack has more rows than that.
-            self._lane_base_by(-16) if self._mod else self._page_by(-1)
+            self._arrow(-1)
         elif number == BTN_RIGHT:
-            self._lane_base_by(16) if self._mod else self._page_by(1)
+            self._arrow(1)
+
+    def _arrow(self, delta):
+        if self._mod and self._view_held:
+            self._view_combo = True
+            self._lane_base_by(16 * delta)
+        elif self._mod:
+            self._length_by(delta)
+        elif self._view_held:
+            self._view_combo = True
+            self._device_by(delta)
+        else:
+            self._page_by(delta)
 
     def _on_cc(self, cc, value):
         delta = decode_relative(value, KNOB_MODE)
@@ -499,11 +633,150 @@ class MVave_SMC_STEPSEQ(ControlSurface):
 
     def _select_lane(self, pitch):
         self._lane = pitch
+        self._select_drum_pad(pitch)
         if self._view == VIEW_OVERVIEW:
             # Otherwise the press has no visible effect: put the chosen lane on
-            # the top row of the window.
+            # the bottom row of the window.
             self._lane_window = _clamp(pitch, 0, 124)
+        self._show_lane()
         self._render()
+
+    def _drum_rack(self):
+        """The selected track's first Drum Rack, or None."""
+        try:
+            for device in self.song().view.selected_track.devices:
+                if getattr(device, 'can_have_drum_pads', False):
+                    return device
+        except Exception:
+            pass
+        return None
+
+    def _drum_pads(self):
+        """The first Drum Rack's 128 pads, read once, or None without a rack.
+
+        Every read of rack.drum_pads builds all 128 pads afresh, so a render
+        reads them here once and hands the list down. Asking the rack per
+        pitch cost ~175 reads, ~22,000 pads, on a single MOD press.
+        """
+        rack = self._drum_rack()
+        if rack is None:
+            return None
+        try:
+            return rack.drum_pads
+        except Exception:
+            return None
+
+    def _show_lane(self):
+        """Name the current lane and the picker's range in Live's status bar.
+
+        The pads can only show the lane while MOD is held, and only when it
+        sits in the picker's current 16; the status bar says it either way.
+        """
+        text = 'Lane %s (%d)' % (note_name(self._lane), self._lane)
+        name = self._drum_name(self._lane)
+        if name:
+            text += ' %s' % name
+        base = self._lane_base
+        text += '  -  MOD + pad picks %s-%s' % (note_name(base),
+                                               note_name(base + 15))
+        self._message(text)
+
+    def _drum_name(self, pitch):
+        """The Drum Rack pad's name for a pitch, or '' without one."""
+        rack = self._drum_rack()
+        if rack is None:
+            return ''
+        try:
+            return getattr(rack.drum_pads[pitch], 'name', '') or ''
+        except Exception:
+            return ''
+
+    def _lane_label(self, pitch):
+        """'Kick (C1)' on a Drum Rack, plain 'C1' anywhere else."""
+        name = self._drum_name(pitch)
+        if name:
+            return '%s (%s)' % (name, note_name(pitch))
+        return note_name(pitch)
+
+    def _show_page(self):
+        """Say which steps the pads are showing, in the status bar.
+
+        The pads cannot say it themselves: page 1 and page 3 of a 64-step loop
+        look the same unless you know the pattern.
+        """
+        if not SHOW_PAGE_MESSAGES or self._clip is None or self._mod:
+            return
+        total = self._step_count()
+        last = max(0, total - 1)
+        if self._view == VIEW_FOCUS:
+            first = self._bank * 16
+            text = 'Steps %d-%d of %d  -  page %d/%d  -  %s' % (
+                first + 1, min(first + 16, total), total,
+                self._bank + 1, last // 16 + 1, self._lane_label(self._lane))
+        else:
+            first = self._page * 4
+            text = 'Overview  -  steps %d-%d of %d  -  lanes %s-%s' % (
+                first + 1, min(first + 4, total), total,
+                note_name(self._lane_window),
+                note_name(min(self._lane_window + 3, 127)))
+        self._message(text)
+
+    def _message(self, text):
+        """Live's status bar, at the bottom of the window."""
+        try:
+            self.show_message(text)
+        except Exception:
+            self._log_exception('show message')
+
+    def _select_drum_pad(self, pitch):
+        """Show the picked drum's pad in the track's Drum Rack.
+
+        That is what puts the drum on VIEW + arrow's device list, so picking
+        the Hi Tom and pressing VIEW + '>' reaches the Hi Tom's own device.
+        """
+        rack = self._drum_rack()
+        if rack is None:
+            return
+        try:
+            rack.view.selected_drum_pad = rack.drum_pads[pitch]
+        except Exception:
+            self._log_exception('select drum pad')
+
+    def _device_list(self):
+        """The selected track's devices in order, with the selected drum's
+        devices right after their Drum Rack, as Live draws them."""
+        found = []
+
+        def walk(devices):
+            for device in devices:
+                found.append(device)
+                if getattr(device, 'can_have_drum_pads', False):
+                    pad = device.view.selected_drum_pad
+                    for chain in (pad.chains if pad is not None else ()):
+                        walk(chain.devices)
+
+        walk(self.song().view.selected_track.devices)
+        return found
+
+    def _device_by(self, delta):
+        """VIEW + arrow: move the blue hand, which the knobs follow."""
+        try:
+            devices = self._device_list()
+            if not devices:
+                return
+            current = self.song().view.selected_track.view.selected_device
+            index = -1
+            for i, device in enumerate(devices):
+                if device == current:
+                    index = i
+                    break
+            if index < 0:
+                index = 0
+            else:
+                index = _clamp(index + delta, 0, len(devices) - 1)
+            self.song().view.select_device(devices[index])
+        except Exception:
+            self._log_exception('select device')
 
     def _toggle_view(self):
         # Keep the musical position across the switch rather than jumping back
@@ -516,6 +789,7 @@ class MVave_SMC_STEPSEQ(ControlSurface):
             self._bank = self._page // 4
         self._clamp_pages()
         self._render()
+        self._show_page()
 
     def _lane_base_by(self, delta):
         """Move the MOD + pad lane picker up or down a bank of 16 pitches.
@@ -529,11 +803,56 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         only lane control this hardware can offer. Moving the index and
         clamping the derived base keeps both: the end stops are pitch 0 and
         112, and stepping back off either stop returns to the original series.
+
+        With a Drum Rack on the track, a bank holding no sound, no note and not
+        the current lane is skipped, and past the last one the arrow stops: an
+        all-dark picker looked broken, and steps on an empty pad play nothing.
         """
-        self._lane_bank = _clamp(self._lane_bank + delta // 16,
-                                 LANE_BANK_MIN, LANE_BANK_MAX)
-        self._lane_base = _clamp(LANE_SELECT_BASE + 16 * self._lane_bank, 0, 112)
+        step = 1 if delta > 0 else -1
+        pads = self._drum_pads()
+        found = self._next_lane_bank(step, pads)
+        if found is None:
+            if pads is not None:
+                edge = self._lane_base + 15 if step > 0 else self._lane_base
+                self._message('No more drums %s %s'
+                              % ('above' if step > 0 else 'below',
+                                 note_name(edge)))
+            return
+        self._lane_bank, self._lane_base = found
+        self._show_lane()
         self._render()
+
+    def _next_lane_bank(self, step, pads):
+        """(bank, base) that MOD + arrow would move to, or None at the end.
+
+        Shared by the move itself and the arrow LEDs, so a lit arrow is always
+        one that moves. `pads` is _drum_pads(): None means no Drum Rack.
+        """
+        bank = self._lane_bank
+        while True:
+            following = _clamp(bank + step, LANE_BANK_MIN, LANE_BANK_MAX)
+            if following == bank:
+                return None
+            bank = following
+            base = _clamp(LANE_SELECT_BASE + 16 * bank, 0, 112)
+            if pads is None or self._bank_has_drums(pads, base):
+                return bank, base
+
+    def _bank_has_drums(self, pads, base):
+        """Would the picker at `base` show anything: a sound, a note, the lane?"""
+        if base <= self._lane < base + 16:
+            return True
+        for pitch in range(base, base + 16):
+            if self._pad_loaded(pads, pitch):
+                return True
+        clip = self._clip
+        if clip is None:
+            return False
+        try:
+            return bool(len(clip.get_notes_extended(
+                base, 16, clip.loop_start, clip.loop_end - clip.loop_start)))
+        except Exception:
+            return False
 
     def _page_by(self, delta):
         # Manual paging stops the chase -- otherwise the next audio buffer yanks
@@ -551,6 +870,36 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         if self._playhead is not None and self._pads_for_step(self._playhead):
             self._follow = FOLLOW_PLAYHEAD
         self._render()
+        self._show_page()
+
+    def _launchable_clip(self):
+        """The bound clip if play can launch it, else None.
+
+        Only a Session clip can be fired. An Arrangement clip selected in the
+        detail view has no slot to launch from, so play falls back to the
+        transport for it, the same as with no clip at all.
+        """
+        clip = self._clip
+        if clip is None or getattr(clip, 'is_arrangement_clip', False):
+            return None
+        return clip
+
+    def _toggle_clip(self):
+        """Play launches the clip on the pads; pressed again, stops it.
+
+        fire() honours the launch quantisation and starts the transport if it
+        is stopped, which is what the mouse does on the clip's launch button.
+        A queued launch counts as playing, so a second press cancels it.
+        """
+        clip = self._launchable_clip()
+        if clip is None:
+            self._toggle_transport()
+            return
+        if clip.is_playing or clip.is_triggered:
+            clip.stop()
+        else:
+            clip.fire()
+        self._paint_buttons()
 
     def _toggle_transport(self):
         song = self.song()
@@ -573,6 +922,33 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         if clip is None:
             return 0
         return max(0, step_at(clip.loop_end - 1e-9, clip.loop_start) + 1)
+
+    def _length_by(self, delta):
+        """MOD + arrow: the clip's loop one bar (16 steps) shorter or longer.
+
+        Snaps to whole bars, so a 20-step loop goes to 16 or 32. Never below
+        one bar or past STEPS_MAX. Growing adds empty steps; nothing is copied.
+        """
+        target = self._length_target(delta)
+        if target is None:
+            if self._clip is not None:
+                self._message('Clip is %s, the %s'
+                              % (_bars(self._loop_steps()),
+                                 'longest' if delta > 0 else 'shortest'))
+            return
+        self._set_length(target)
+        self._message('Clip length %s (%d steps)' % (_bars(target), target))
+
+    def _length_target(self, delta):
+        """The loop length in steps MOD + arrow would set, or None if none."""
+        if self._clip is None:
+            return None
+        steps = self._loop_steps()
+        if delta > 0:
+            target = (steps // 16 + 1) * 16
+            return target if target <= STEPS_MAX else None
+        target = ((steps - 1) // 16) * 16
+        return target if target >= 16 else None
 
     def _set_length(self, steps):
         clip = self._clip
@@ -628,7 +1004,10 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         return (col, col + 4, col + 8, col + 12) if 0 <= col < 4 else ()
 
     def _empty_color(self, step):
-        if COLOR_STEP_DOWNBEAT and step % 4 == 0:
+        # Beat markers in focus only: an overview page is 4 steps, so its left
+        # column is always a beat and a marker there would read as a lane.
+        if (COLOR_STEP_DOWNBEAT and step % 4 == 0
+                and self._view == VIEW_FOCUS):
             return COLOR_STEP_DOWNBEAT
         return COLOR_STEP_EMPTY
 
@@ -638,15 +1017,26 @@ class MVave_SMC_STEPSEQ(ControlSurface):
     def _on_notes_changed(self):
         self._render()
 
+    @_guarded('play status listener')
+    def _on_play_status(self):
+        # Launching or stopping a clip whose playhead was already off the grid
+        # moves no step, so _on_playhead returns before repainting and the
+        # play LED would miss a queued launch. Repaint the buttons directly.
+        self._on_playhead()
+        self._paint_buttons()
+
     @_guarded('playhead listener')
     def _on_playhead(self):
         clip = self._clip
         step = None
+        previous = self._playhead
         if clip is not None and clip.is_playing:
             step = step_at(clip.playing_position, clip.loop_start)
-            if not 0 <= step < self._step_count():
+            # Range-checked only when the step moved: this fires per audio
+            # buffer, and an unchanged step passed the check when it was new.
+            # A loop brace moved under it is _on_loop_changed's to catch.
+            if step != previous and not 0 <= step < self._step_count():
                 step = None
-        previous = self._playhead
         if step == previous:
             # This listener fires per audio buffer. Only a step change is worth
             # any work, and _paint() below reads no clip data at all.
@@ -666,6 +1056,7 @@ class MVave_SMC_STEPSEQ(ControlSurface):
             if (self._follow and self._worth_following(step)
                     and self._scroll_to(step)):
                 self._render()  # the window moved, so the whole grid is stale
+                self._show_page()
                 return
         self._paint()
 
@@ -708,6 +1099,9 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         self._grid = [COLOR_STEP_OFF] * 16
         self._on = [False] * 16
         clip = self._clip
+        if self._mod:
+            self._refresh_picker(clip)
+            return
         if clip is None:
             if COLOR_NO_CLIP:
                 self._grid[0] = COLOR_NO_CLIP
@@ -726,13 +1120,14 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         notes = clip.get_notes_extended(self._lane, 1,
                                         clip.loop_start + first * STEP,
                                         16 * STEP)
+        color = self._lane_color(self._lane, self._drum_pads())
         for note in notes:
             index = step_at(note.start_time, clip.loop_start) - first
             # Gated on `total` as well as on the window: Live keeps notes that
             # sit past the loop brace, and the read window can reach them.
             # Lighting one would promise a step that toggle_step refuses.
             if 0 <= index < 16 and first + index < total:
-                self._grid[index] = COLOR_STEP_ON
+                self._grid[index] = color
                 self._on[index] = True
 
     def _refresh_overview(self, clip):
@@ -746,20 +1141,110 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         notes = clip.get_notes_extended(self._lane_window, 4,
                                         clip.loop_start + first * STEP,
                                         4 * STEP)
+        pads = self._drum_pads()
+        colors = [self._lane_color(self._lane_window + lane, pads, lane)
+                  for lane in range(4)]
+        # Rows run bottom-up, lowest lane on the bottom row, so the pads stack
+        # the same way as Live's piano roll and drum rack.
         for note in notes:
-            row = int(note.pitch) - self._lane_window
+            lane = int(note.pitch) - self._lane_window
             col = step_at(note.start_time, clip.loop_start) - first
-            if 0 <= row < 4 and 0 <= col < 4 and first + col < total:
-                self._grid[row * 4 + col] = LANE_COLORS[row]
-                self._on[row * 4 + col] = True
+            if 0 <= lane < 4 and 0 <= col < 4 and first + col < total:
+                index = (3 - lane) * 4 + col
+                self._grid[index] = colors[lane]
+                self._on[index] = True
+
+    def _refresh_picker(self, clip):
+        """MOD held: the 16 pitches MOD + pad can pick, drum-rack layout.
+
+        White is the lane being edited; every other drum with a sound or with
+        notes in the loop shows its drum's colour, the same as its steps. Works
+        with no clip bound, so the rack's loaded pads still show.
+
+        While the clip plays, a drum's pad flashes white on each step it plays
+        (the lane's own white pad flashes its drum colour), which is the only
+        place the picker says which drums are in the pattern. Which steps those are is worked out here, so _paint()
+        -- which runs on every playhead step -- still reads no clip data.
+        """
+        base = self._lane_base
+        with_notes = set()
+        self._picker_hits = {}
+        if clip is not None:
+            total = self._step_count()
+            for note in clip.get_notes_extended(base, 16, clip.loop_start,
+                                                clip.loop_end - clip.loop_start):
+                pitch = int(note.pitch)
+                with_notes.add(pitch)
+                step = step_at(note.start_time, clip.loop_start)
+                if 0 <= step < total:
+                    row, col = divmod(pitch - base, 4)
+                    self._picker_hits.setdefault(step, set()).add(
+                        (3 - row) * 4 + col)
+        pads = self._drum_pads()
+        # Worked out here, once per MOD press or bank move, rather than in
+        # _paint_buttons(), which runs on every playhead step.
+        if ARROW_LEDS:
+            self._lane_arrows = (self._next_lane_bank(-1, pads) is not None,
+                                 self._next_lane_bank(1, pads) is not None)
+        for index in range(16):
+            pitch = lane_for_pad(index, base)
+            loaded = pads is not None and self._pad_loaded(pads, pitch)
+            if pitch == self._lane:
+                self._grid[index] = COLOR_PICK_SELECTED
+            elif DRUM_COLORS and (loaded or pitch in with_notes):
+                self._grid[index] = self._lane_color(pitch, pads)
+            elif pitch in with_notes:
+                self._grid[index] = COLOR_PICK_NOTES
+            elif loaded:
+                self._grid[index] = COLOR_PICK_LOADED
+        self._picker_flash = {}
+        for index in set().union(*self._picker_hits.values()):
+            pitch = lane_for_pad(index, base)
+            flash = self._lane_color(pitch, pads)
+            # A pad already showing its drum colour flashes white instead, as
+            # a step does when the playhead crosses a note.
+            if flash == self._grid[index]:
+                flash = COLOR_PLAYHEAD_ON
+            self._picker_flash[index] = flash
+        if LOG_MIDI:
+            self._log('picker lane %d base %d grid %s'
+                      % (self._lane, base, self._grid))
+
+    def _lane_color(self, pitch, pads, row=None):
+        """The colour a lane's notes light: its drum's, or the old fixed one.
+
+        `pads` is _drum_pads(). `row` is the overview row, for LANE_COLORS
+        when DRUM_COLORS is off; None is the focus view, whose notes are all
+        COLOR_STEP_ON then.
+        """
+        if not DRUM_COLORS:
+            return COLOR_STEP_ON if row is None else LANE_COLORS[row]
+        name = ''
+        if pads is not None and self._pad_loaded(pads, pitch):
+            try:
+                name = getattr(pads[pitch], 'name', '') or ''
+            except Exception:
+                name = ''
+        return drum_color(pitch, name)
+
+    def _pad_loaded(self, pads, pitch):
+        try:
+            return bool(len(pads[pitch].chains))
+        except Exception:
+            return False
 
     def _paint(self):
         """Overlay the playhead on the grid and send only what changed."""
         colors = list(self._grid)
-        if self._playhead is not None:
+        # No playhead over the lane picker: there it would mark a drum, not a
+        # step. Instead each drum the clip plays on this step flashes.
+        if self._playhead is not None and not self._mod:
             for index in self._pads_for_step(self._playhead):
                 colors[index] = (COLOR_PLAYHEAD_ON if self._on[index]
                                  else COLOR_PLAYHEAD)
+        elif self._playhead is not None and PICKER_FLASH:
+            for index in self._picker_hits.get(self._playhead, ()):
+                colors[index] = self._picker_flash[index]
         for index, color in enumerate(colors):
             if self._led[index] != color:
                 self._led[index] = color
@@ -767,31 +1252,61 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         self._paint_buttons()
 
     def _paint_buttons(self):
-        """Show state on the buttons: transport, view, and the held modifier.
+        """Show state on the buttons: play, view, the held modifier, and
+        whether each arrow has anywhere to go.
 
-        Driven from _paint() rather than from a song listener. _paint() runs on
-        every playhead step, so the transport LED follows within one step of the
-        transport moving, and every button press repaints directly. That avoids
-        adding an is_playing listener whose attach/detach lifecycle would be one
-        more thing to get right against an API this file cannot test against.
-        The visible cost: starting the transport while no clip is playing leaves
-        the play LED stale until the next press or selection change.
+        Play is lit while the bound clip plays or is queued to, since that is
+        what pressing it toggles; with no launchable clip it shows the
+        transport instead. The clip's playing-status listener and every button
+        press repaint this, so the clip case is always current. The transport
+        case has no song listener -- one more attach/detach lifecycle against
+        an API this file cannot test against -- so starting the transport from
+        the mouse leaves the LED stale until the next press or selection change.
         """
         if not BUTTON_LEDS:
             return
         try:
-            playing = bool(self.song().is_playing)
+            clip = self._launchable_clip()
+            if clip is not None:
+                playing = bool(clip.is_playing or clip.is_triggered)
+            else:
+                playing = bool(self.song().is_playing)
         except Exception:
             playing = False
+        left, right = self._arrow_state()
         for note, on in ((BTN_PLAY, playing),
                          (BTN_VIEW, self._view == VIEW_OVERVIEW),
-                         (BTN_MOD, self._mod)):
+                         (BTN_MOD, self._mod),
+                         (BTN_LEFT if ARROW_LEDS else None, left),
+                         (BTN_RIGHT if ARROW_LEDS else None, right)):
             if note is None or note < 0:
                 continue
             color = BTN_LED_ON if on else BTN_LED_OFF
             if self._btn_led.get(note) != color:
                 self._btn_led[note] = color
                 self._send_midi((0x90 | BUTTON_CHANNEL, note, color))
+
+    def _arrow_state(self):
+        """Would '<' and '>' do anything right now? (left, right)"""
+        if not ARROW_LEDS:
+            return False, False
+        if self._mod and self._view_held:
+            return self._lane_arrows
+        if self._mod:
+            try:
+                return (self._length_target(-1) is not None,
+                        self._length_target(1) is not None)
+            except Exception:
+                return False, False     # the clip died; the rebind will repaint
+        if self._clip is None:
+            return False, False
+        try:
+            last = max(0, self._step_count() - 1)
+        except Exception:
+            return False, False         # the clip died; the rebind will repaint
+        if self._view == VIEW_FOCUS:
+            return self._bank > 0, self._bank < last // 16
+        return self._page > 0, self._page < last // 4
 
     def _send_led(self, index, color):
         # Note-on, always. This device ignores a real note-off entirely and
@@ -806,7 +1321,7 @@ class MVave_SMC_STEPSEQ(ControlSurface):
             self._led[index] = COLOR_STEP_OFF
             self._send_led(index, COLOR_STEP_OFF)
         if BUTTON_LEDS:
-            for note in (BTN_PLAY, BTN_VIEW, BTN_MOD):
+            for note in (BTN_PLAY, BTN_VIEW, BTN_MOD, BTN_LEFT, BTN_RIGHT):
                 if note is not None and note >= 0:
                     self._btn_led[note] = BTN_LED_OFF
                     self._send_midi((0x90 | BUTTON_CHANNEL, note, BTN_LED_OFF))
@@ -850,6 +1365,14 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         self._unhandled.add(signature)
         self._log('unmapped: status %02X data %d %d (channel %d)'
                   % (status, data1, data2, (status & 0x0F) + 1))
+
+
+def _bars(steps):
+    """16 steps -> '1 bar', 20 -> '1.25 bars'."""
+    bars = steps / 16.0
+    if bars == int(bars):
+        bars = int(bars)
+    return '%s bar%s' % (bars, '' if bars == 1 else 's')
 
 
 def _span(numbers):

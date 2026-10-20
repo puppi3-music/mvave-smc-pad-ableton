@@ -14,7 +14,7 @@ setup, see [INSTALL.md](INSTALL.md).
 - [How Live loads a Remote Script](#how-live-loads-a-remote-script)
 - [Package naming, and one hazard it creates](#package-naming-and-one-hazard-it-creates)
 - [Origin and attribution](#origin-and-attribution)
-- [Why there are two scripts](#why-there-are-two-scripts)
+- [Why there are three scripts](#why-there-are-three-scripts)
 - [How the knob script reaches the pad script's session box](#how-the-knob-script-reaches-the-pad-scripts-session-box)
 - [File-by-file walkthrough](#file-by-file-walkthrough)
 - [The MIDI map indirection](#the-midi-map-indirection)
@@ -73,7 +73,7 @@ MVave_SMC_<ROLE>/                 <- Live shows this string in its dropdown
 | | Folder | Module | Class | Constants |
 |---|---|---|---|---|
 | `MVave_SMC_PAD` | ✓ | ✓ | ✓ | `MIDI_Map.py` |
-| `MVave_SMC_KNOBS` | ✓ | ✓ | ✓ | inline (~6 of them) |
+| `MVave_SMC_KNOBS` | ✓ | ✓ | ✓ | inline, at the top of the file |
 | `MVave_SMC_STEPSEQ` | ✓ | ✓ | ✓ | `MIDI_Map.py` |
 
 The folder name is load-bearing — it is the string a user picks in Live, so
@@ -138,6 +138,7 @@ handlers.
 | `_apply_clip_colours()` and the `CLIP_*` palette constants | **This project** |
 | `_setup_modifier()` / `_modifier_value()` / `_set_session_banking()` and `MODIFIER` | **This project** |
 | `self._missing_clip_setters` version-tolerance logging | **This project** |
+| `KeysMode.py`, `KeysLayout.py`, `_setup_keys()` and `refresh_state()` | **This project** |
 | Every value in `MIDI_Map.py` (note map, 4×4 grid, palette indices, transport notes) | **This project** |
 | `MVave_SMC_KNOBS/` — except `__init__.py`, which is the template's boilerplate with the names changed, footer included | **This project** |
 | `MVave_SMC_STEPSEQ/` — except `__init__.py`, the same three-line boilerplate as the row above | **This project** |
@@ -156,22 +157,30 @@ chosen. See the Licence section of the [README](../README.md).
 
 ---
 
-## Why there are two scripts
+## Why there are three scripts
 
 **A Remote Script gets exactly one MIDI input port, and this controller sends its
-pads and its encoders on different ports.**
+lit pads and its encoders on different ports.**
 
-The SMC-PAD presents three port pairs. Measured behaviour: the pads and the five
-buttons appear only on port 3 (the DAW port); the eight encoders appear on ports
-1 and 2, identically, and never on port 3. No single script can see both halves.
+The SMC-PAD presents three port pairs. Measured behaviour: the lit (MCP-typed)
+pads and the five buttons appear only on port 3 (the DAW port); the eight
+encoders appear on ports 1 and 2, identically, and never on port 3. No single
+script can see both halves.
 
-So there are two packages in two Control Surface slots:
+So there are three packages in three Control Surface slots:
 
-| Slot | Script | Input | Output | Owns |
-|---|---|---|---|---|
-| 1 | `MVave_SMC_PAD` | port 3 in | port 3 out | 16 pads, 5 buttons, all LED feedback |
-| 2 | `MVave_SMC_KNOBS` | port 1 in | *none* | the 8 encoders |
-| — | — | port 2 left unassigned | | remains available to Live's own MIDI mapping |
+| Script | Input | Output | Owns |
+|---|---|---|---|
+| `MVave_SMC_PAD` | port 3 | port 3 | presets 1 and 3: pads, buttons and LEDs for the launcher, mixer and keyboard |
+| `MVave_SMC_STEPSEQ` | port 3 | port 3 | preset 2: the sequencer's pads, buttons and LEDs ([STEPSEQ.md](STEPSEQ.md)) |
+| `MVave_SMC_KNOBS` | port 1 | port 1 | the encoders on every preset, preset/bank/velocity polling, preset 1 at startup, plain-MIDI pass-through |
+| — | port 2, unassigned | | Remote on for Live's own MIDI mapping; Track off |
+
+`MVave_SMC_PAD` and `MVave_SMC_STEPSEQ` share port 3 and never answer the same
+notes or light the same LED numbers, so the pad preset switch is the mode
+switch. Since Track is off on port 2, `MVave_SMC_KNOBS` also passes plain MIDI
+(preset 2's drum pads, note repeat) to the armed track, and plays the selected
+device's parameter banks with preset 3's knobs.
 
 Two properties of Live's port handling shape this table:
 
@@ -180,9 +189,13 @@ Two properties of Live's port handling shape this table:
   arriving there. Ports 1 and 2 carry identical CCs, so the script takes one and
   ordinary MIDI mapping survives on the other. If your controller has no such
   duplicate port, understand that a script and Ctrl+M cannot share.
-- **The knob script needs no output.** It sends nothing to the device; leaving
-  Output at None avoids a second script writing to a port the pad script's LED
-  feedback might also want.
+- **The knob script's output is port 1, not port 3.** It sends only the state
+  read that tells it which preset and PAD BANK are up (HARDWARE.md 3.6), and
+  the device answers that only on port 1, plus the one-off write that puts the
+  controller on preset 1 at load. It never writes to port 3, which belongs to
+  the LED feedback. With Output at None the encoders still work, but the
+  lights repaint only if the controller sends its status unprompted, which
+  HARDWARE.md 3.6 has seen both happen and not.
 
 The split is not a design preference. If your controller puts everything on one
 port, write one script.
@@ -277,7 +290,11 @@ Two limitations of the current implementation, both visible in the code:
 | `__init__.py` | `create_instance()`. Three lines. |
 | `MVave_SMC_PAD.py` | The `ControlSurface` subclass. All wiring lives here. |
 | `MIDI_Map.py` | Every note number, CC number, grid size and colour index. The only file most users need to edit. |
-| `SpecialSessionComponent.py` | `SessionComponent` + combination-mode linking + "fire the highlighted slot" button. |
+| `KeysMode.py` | Preset 3's Launchpad-style keyboard. Bank A's pads (`KEYS_NOTES`) are translated to scale notes with `set_identifier`/`set_channel` and `suppress_script_forwarding`, then a midi map rebuild, so Live hands them to the armed track. They go out on `KEYS_CHANNEL` (MIDI channel 2) because Live looks a translated note up in the script's own map: on the script's channel, a scale note of 55 pressed the mixer's solo button; bank B's pads (`SETTINGS_NOTES`) set root, scale and octave, and pressing the current root toggles the in-key and chromatic layouts, and the root pad lights `KEYS_SETTINGS_CHROMATIC` (white-blue) instead of `KEYS_SETTINGS_ROOT` while chromatic; each octave pad lights in the `KEYS_OCTAVE_COLOURS` entry (one palette index per octave from `KEYS_OCTAVE_MIN`) of the octave it moves to; a scale pad press that lands on Major flickers that pad between `KEYS_SCALE_FLASH` (white) and its green `KEYS_SCALE_FLASH_TIMES` times, `KEYS_SCALE_FLASH_TICKS` display ticks per step (`_start_flash`, then `_flash_tick` rescheduling itself by `schedule_message`; a counter makes a tick that a later press or `disconnect()` has overtaken paint nothing). Follows and writes Live 12's song scale (`root_note`, `scale_name`, `scale_intervals`). Repainted from `refresh_state()`, which `MVave_SMC_KNOBS` calls on every preset or PAD BANK switch. Pushes its note table (`targets()`) to `MVave_SMC_KNOBS.keys_changed()`, because note repeat arrives on the knobs script's port (HARDWARE.md 5.7). |
+| `KeysLayout.py` | The keyboard's pure layout functions and scale table, importable without `_Framework` for the self-test. |
+| `DeviceNav.py` | Stop + arrows device walk; pure functions. |
+| `StartupIntro.py` | The startup intro: `INTRO_RAINBOW` (18 palette indices in hue order, picked on the device from the HARDWARE.md 3.2.1 survey; the pads cannot blend, so its length is its smoothness) runs diagonally across the clip grid's LEDs from PAD1 for `INTRO_RAINBOW_TICKS`, each colour lasting `INTRO_COLOUR_TICKS`, then PAD1 flashes `INTRO_FLASH_COLOUR` for `INTRO_FLASH_TICKS`, then `refresh_state()` gives the grid back. `frame()` is pure. `CLIPNOTEMAP`'s first row is the top one (PAD1, bottom-left, sends note 13), so `grid_leds()` counts rows from the last. It is played once: `MVave_SMC_KNOBS` schedules `play_intro(show)` with its first status after the startup write, and `show` is False on any layout but preset 1 bank A. `MVave_SMC_PAD` falls back to playing it after `INTRO_FALLBACK_TICKS`. Ticks follow the KeysMode flash idiom (`schedule_message` and a counter). `refresh_state()` repaints the current frame over the clip colours while it plays. |
+| `SpecialSessionComponent.py` | `SessionComponent` + combination-mode linking + "fire the highlighted slot" button. Its scenes build `NewClipSlotComponent`s (via `scene_component_type` / `clip_slot_component_type`), whose `_do_launch_clip` override turns a press on an empty slot of a MIDI track, armed or not, into a `create_clip()` of `NEW_CLIP_BARS` bars (converted to beats), selects the slot and opens the clip view: a double-click, not an open-ended recording that grows under the step sequencer. The release is swallowed so it never reaches the new clip. Audio tracks fall through to the framework (record if armed, else stop). |
 | `SpecialMixerComponent.py` | `MixerComponent` whose `tracks_to_use()` returns visible tracks **and** return tracks; creates `SpecialChannelStripComponent`s. |
 | `SpecialChannelStripComponent.py` | Channel strip whose select button also folds/unfolds group tracks, after a 5-tick timer delay. |
 | `SpecialTransportComponent.py` | Transport + record-quantisation toggle, undo/redo, a relative tempo encoder, and a `_tempo_value` override that reads `TEMPO_TOP`/`TEMPO_BOTTOM` from `MIDI_Map.py`. |
@@ -297,11 +314,14 @@ scenes × tracks assigning each clip slot's launch button from `CLIPNOTEMAP` and
 calling `_apply_clip_colours()`. It also builds the `SpecialZoomingComponent` and
 calls `_setup_modifier()`.
 
-**`_setup_mixer_control()`** is stock template: a hardcoded 8-strip mixer with
-arm/solo/mute/select buttons and volume/pan/three sends per strip. Every one of
-those constants is `-1` in this project's `MIDI_Map.py`, so the whole mixer is
-built and wired to `None` — except `set_select_buttons(TRACKRIGHT, TRACKLEFT)`,
-which is what makes buttons 20 and 21 select the previous/next track.
+**`_setup_mixer_control()`** is the template's 8-strip mixer with
+arm/solo/mute/select buttons and volume/pan/three sends per strip. This project
+assigns the first four strips' mute, solo and arm (`TRACKMUTE`, `TRACKSOLO`,
+`TRACKREC`, notes 49–60) and, through the session, `TRACKSTOP` (61–64): that is
+preset 1's PAD BANK mixer. Everything else is `-1` and wired to `None`. The
+mixer's select buttons are set to `None` on purpose: the arrows belong to
+`_setup_stop_and_arrows()`, which selects tracks itself and, with Stop held,
+walks devices (`DeviceNav.py`).
 
 **`_setup_device_and_transport_control()`** builds three things: the
 `DeviceComponent`, the `DetailViewControllerComponent`, and the
@@ -346,11 +366,11 @@ pad's note is swallowed before the session component sees it.
 | `__init__.py` | `create_instance()`. |
 | `MVave_SMC_KNOBS.py` | Everything: constants, the `ControlSurface` subclass, the relative-encoder decode, the cross-script session lookup — all of it in one file, no subcomponents. |
 
-Its constants sit at the top of the file rather than in a separate map, because
-there are only a handful:
+Its constants sit at the top of the file rather than in a separate map, each
+with a comment saying where its value came from. The ones you are most likely
+to touch:
 
 ```python
-CHANNEL  = 0
 CENTRE   = 64
 CC_TRACK = 17            # bank 2, encoder 1
 CC_SCENE = 18            # bank 2, encoder 2
@@ -359,7 +379,13 @@ MACRO_BY_CC = {          # CC -> macro number, 1-based
     9: 9,  10: 10, 11: 11, 12: 12, 13: 13, 14: 14,             # bank 2
     15: 15, 16: 16,                    # bank 2 bottom pair, sequencer preset
 }
+PARAM_CC_FIRST = 21      # preset 3: CC 21-36 -> Live parameter-bank slots
 STEPS_PER_SWEEP = 127.0  # one click = this fraction of a parameter's range
+ENCODER_MODE = 'centre'  # or 'twos'
+STARTUP_PRESET = 0       # preset 1 at load; None leaves the controller alone
+STARTUP_BANK = 0         # PAD BANK off at load
+POLL_TICKS = 2           # ask for the preset every ~0.2 s
+PASS_CHANNEL = 1         # pass-through notes go out on MIDI channel 2
 ```
 
 Macro *N* is `device.parameters[N]` — index 0 is the device on/off switch, so the
@@ -373,7 +399,7 @@ physical order that looks random under your hands. Measured one encoder at a tim
 with the probe tool; see [HARDWARE.md](HARDWARE.md) §4, and re-measure after any
 change in the M-Vave editor rather than trusting a table.
 
-The class has four responsibilities, in four small blocks:
+The class has these responsibilities:
 
 1. `_setup_device_control()` — construct a `DeviceComponent` *purely* so Live's
    blue hand follows the same device the knobs write to, and register it with
@@ -382,9 +408,21 @@ The class has four responsibilities, in four small blocks:
 2. `_on_selected_track_changed()` — point both that component and the script's own
    `_target_device` at the newly selected track's device.
 3. `build_midi_map()` / `receive_midi()` / `_navigate()` / `_macro()` — forward and
-   intercept all eighteen CCs, decoding the relative encoding by hand and writing
-   `device.parameters[n]` directly.
+   intercept every knob CC, decoding the relative encoding by hand and writing
+   `device.parameters[n]` directly. Preset 3's CCs 21–36 go to Live 12's
+   parameter-bank table instead (`BANK_DEFINITIONS`, from `ableton.v3`), or to
+   parameter order when that table can't be imported.
 4. `_pad_session()` / `_bank()` / `_probe_value()` — move the other script's session box.
+5. The state read (HARDWARE.md 3.6) — poll the controller for its preset,
+   PAD BANK and VELOCITY setting; on a change, schedule `refresh_state()` on the
+   two pad scripts and pass the velocity to the sequencer. `LAYOUTS_BY_NOTE` /
+   `LAYOUTS_BY_CC` let a note or CC that belongs to another layout trigger an
+   immediate read.
+6. The startup write — put the controller on `STARTUP_PRESET` / `STARTUP_BANK`,
+   then tell `MVave_SMC_PAD` whether to play its intro.
+7. `_setup_pass_through()` — translate the plain-MIDI drum pads and note
+   repeat onto MIDI channel 2 for the track, following the keyboard's note table
+   (`keys_changed()`, pushed from `KeysMode`).
 
 **`_probe_value()` reads the session's getters defensively:**
 
@@ -718,7 +756,10 @@ Current assignments:
 | `TSB_X`, `TSB_Y` | 4, 4 | session box is 4 tracks × 4 scenes |
 | `CLIPNOTEMAP` | notes 1–16 | the 4×4 grid, reading order from top-left |
 | `PLAY`, `STOP`, `REC` | 17, 18, 19 | transport |
-| `TRACKLEFT`, `TRACKRIGHT` | 20, 21 | select previous / next track (via the mixer) |
+| `PAD_LED_OFFSET` | 32 | the grid lights LEDs 33–48, not its notes (HARDWARE.md 5.2) |
+| `TRACKLEFT`, `TRACKRIGHT` | 20, 21 | select previous / next track; with Stop held, previous / next device (`DeviceNav.py`) |
+| `TRACKMUTE`, `TRACKSOLO`, `TRACKREC`, `TRACKSTOP` | 49–64 | preset 1's PAD BANK mixer, four tracks × four rows; LEDs at note + `MIXER_LED_OFFSET` |
+| `KEYS_*`, `SETTINGS_*` | notes 85–100, 22–37 | preset 3's keyboard and its key/scale pads |
 | `SESSIONLEFT/RIGHT/UP/DOWN` | −1 | session box banking — handled by the encoders instead |
 | `CLIP_*` | 5, 15, 14, 21, 24 | pad colours, see above |
 | `PARAMCONTROL` | CC 1–8 | pad-script device params; inert, the DAW port sends no CCs |
@@ -837,7 +878,10 @@ latches, clamping before calls that assert. The framework varies across Live
 versions and you will be developing against exactly one of them.
 
 **6. Expect the loop to be slow.** Restart Live for every change; `Log.txt` is your
-only instrument. Write log lines that answer a specific diagnostic question — the
+only instrument. Before each restart, run `python3 tools/stepseq_selftest.py`:
+despite the name it exercises all three scripts against fakes of Live (the
+sequencer, the launcher's note map and device walk, the keyboard, and the knob
+script's state handling), and it takes under a second. Write log lines that answer a specific diagnostic question — the
 knob script's three lines each distinguish a different failure ("loaded at all",
 "the blue hand ever got a target", "MIDI is arriving") — and latch them so they
 print once.
@@ -883,9 +927,11 @@ attribute never created in `__init__`. `SpecialTransportComponent.py` and
 implementations. All inherited; left in place because they document what the
 template offers and re-enabling them is uncommenting.
 
-**Line endings differ between the two packages.** `MVave_SMC_PAD/` is CRLF
-throughout (it came off a Windows machine with the template);
-`MVave_SMC_KNOBS/`, `MVave_SMC_STEPSEQ/` and `tools/*.py` are LF, while
+**Line endings are mixed.** The template's files in `MVave_SMC_PAD/` —
+`__init__.py` and the six `Special*Component.py` files except
+`SpecialSessionComponent.py` — are CRLF (they came off a Windows machine with
+the template). Everything else, including `MVave_SMC_PAD.py`, `MIDI_Map.py`
+and the files this project added there, is LF, while
 `tools/run_probe.bat` is CRLF — deliberately, because `cmd.exe` can fail to
 resolve `goto :label` in a batch file saved with bare LF endings. `.gitattributes` sets `* -text` so git
 stores both exactly as they are rather than producing a whole-file diff on every

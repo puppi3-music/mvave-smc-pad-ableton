@@ -95,8 +95,10 @@ class FakeClip(FakeListenable):
         self.loop_end = loop_end
         self.end_marker = loop_end
         self.is_playing = False
+        self.is_triggered = False
         self.playing_position = 0.0
         self.notes = []
+        self.fired = 0
         self.dead = False
 
     def __getattribute__(self, name):
@@ -195,11 +197,20 @@ class FakeClip(FakeListenable):
 
     def play(self, position):
         self.is_playing = True
+        self.is_triggered = False
         self.playing_position = position
         self._fire('position')
 
+    def fire(self):
+        # Live queues the launch until the quantise point: triggered, not yet
+        # playing, and the status listener hears it.
+        self.fired += 1
+        self.is_triggered = True
+        self._fire('status')
+
     def stop(self):
         self.is_playing = False
+        self.is_triggered = False
         self._fire('status')
 
 
@@ -220,6 +231,7 @@ class FakeView(FakeListenable):
 
     def select_device(self, device):
         self.selected_device = device
+        self.selected_track.view.selected_device = device
 
     def select(self, clip):
         self.detail_clip = clip
@@ -242,6 +254,26 @@ class FakeView(FakeListenable):
 
     def selected_track_has_listener(self, cb):
         return self._has('track', cb)
+
+
+class FakeChain(object):
+    def __init__(self, devices):
+        self.devices = list(devices)
+
+
+class FakeDrumPad(object):
+    def __init__(self, note, devices=()):
+        self.note = note
+        self.chains = [FakeChain(devices)] if devices else []
+
+
+class FakeDrumRack(object):
+    can_have_drum_pads = True
+
+    def __init__(self, pads):
+        self.name = 'Kit'
+        self.drum_pads = [pads.get(n, FakeDrumPad(n)) for n in range(128)]
+        self.view = type('RackView', (), {'selected_drum_pad': None})()
 
 
 class FakeTrack(object):
@@ -355,6 +387,10 @@ def install_stubs():
         def log_message(self, message):
             self._c_instance.log_message(message)
 
+        def show_message(self, message):
+            # Live's status bar, at the bottom of the window.
+            self.messages = getattr(self, 'messages', []) + [message]
+
         def _send_midi(self, midi_bytes):
             self.sent.append(tuple(midi_bytes))
 
@@ -377,8 +413,56 @@ def install_stubs():
         def set_device_component(self, component):
             self._device_component = component
 
+        def request_rebuild_midi_map(self):
+            self.rebuilds = getattr(self, 'rebuilds', 0) + 1
+
+        def schedule_message(self, delay, callback, parameter=None):
+            pass
+
+        def update_display(self):
+            pass
+
         def disconnect(self):
             pass
+
+    class InputControlElement(object):
+        """What the pass-through elements touch: identifier, channel,
+        suppress_script_forwarding, use_default_message."""
+        created = []
+
+        def __init__(self, msg_type, channel, identifier):
+            self.msg_type = msg_type
+            self.original = (identifier, channel)
+            self.identifier, self.channel = identifier, channel
+            self.suppress_script_forwarding = False
+            InputControlElement.created.append(self)
+
+        def set_identifier(self, value):
+            self.identifier = value
+
+        def set_channel(self, value):
+            self.channel = value
+
+        def use_default_message(self):
+            self.identifier, self.channel = self.original
+
+    class ButtonElement(InputControlElement):
+        def __init__(self, is_momentary, msg_type, channel, identifier):
+            InputControlElement.__init__(self, msg_type, channel, identifier)
+
+    class SliderElement(InputControlElement):
+        pass
+
+    ice_module = types.ModuleType('_Framework.InputControlElement')
+    ice_module.InputControlElement = InputControlElement
+    ice_module.MIDI_NOTE_TYPE, ice_module.MIDI_CC_TYPE = 0, 1
+    button_module = types.ModuleType('_Framework.ButtonElement')
+    button_module.ButtonElement = ButtonElement
+    slider_module = types.ModuleType('_Framework.SliderElement')
+    slider_module.SliderElement = SliderElement
+    sys.modules['_Framework.InputControlElement'] = ice_module
+    sys.modules['_Framework.ButtonElement'] = button_module
+    sys.modules['_Framework.SliderElement'] = slider_module
 
     cs_module = types.ModuleType('_Framework.ControlSurface')
     cs_module.ControlSurface = ControlSurface
@@ -493,7 +577,15 @@ def cc(channel, number, value):
 class SeqTest(unittest.TestCase):
     """Base: a loaded script with a bound four-beat clip."""
 
+    # Most tests here are about geometry, not palette: they are written against
+    # one teal note colour and the fixed LANE_COLORS rows. DrumColours turns it
+    # back on to test the drum kinds themselves.
+    DRUM_COLORS = False
+
     def setUp(self):
+        self._drum_colors = SEQ_MODULE.DRUM_COLORS
+        SEQ_MODULE.DRUM_COLORS = self.DRUM_COLORS
+        self.addCleanup(setattr, SEQ_MODULE, 'DRUM_COLORS', self._drum_colors)
         MVave_SMC_STEPSEQ._active_instances = []
         self.c_instance = FakeCInstance()
         self.seq = MVave_SMC_STEPSEQ(self.c_instance)
@@ -517,7 +609,12 @@ class SeqTest(unittest.TestCase):
         self.seq.receive_midi(note_on(C.PAD_CHANNEL, C.PAD_NOTES[pad_index], velocity))
         self.seq.receive_midi(note_on(C.PAD_CHANNEL, C.PAD_NOTES[pad_index], 0))
 
-    def button(self, number, down=True):
+    def button(self, number, down=None):
+        """Press and release by default; down=True/False sends just one edge."""
+        if down is None:
+            self.button(number, True)
+            self.button(number, False)
+            return
         self.seq.receive_midi(note_on(C.BUTTON_CHANNEL, number, 127 if down else 0))
 
     def leds(self):
@@ -628,6 +725,38 @@ class Writing(SeqTest):
         self.seq.receive_midi(cc(C.KNOB_CHANNEL, C.CC_VELOCITY, 63))
         self.seq.toggle_step(C.DEFAULT_LANE, 0)          # no velocity argument
         self.assertEqual(self.clip.notes[0].velocity, C.PAINT_VELOCITY - 1)
+
+    def test_steps_default_to_velocity_4(self):
+        # Before the controller reports its setting: 127, as VELOCITY 4 gives.
+        self.assertEqual(C.PAINT_VELOCITY, C.VELOCITY_LEVELS[3])
+        self.assertEqual(C.VELOCITY_LEVELS[3], 127)
+        self.seq.toggle_step(C.DEFAULT_LANE, 0)
+        self.assertEqual(self.clip.notes[0].velocity, 127)
+
+    def test_the_velocity_setting_sets_the_step_velocity(self):
+        # The lit pads strike 127 whatever the setting, so the setting wins.
+        for setting, pad in ((0, 0), (1, 1), (2, 2), (3, 3)):
+            self.seq.set_velocity_setting(setting)
+            self.press(pad, 127)
+        self.assertEqual([n.velocity for n in self.clip.notes],
+                         list(C.VELOCITY_LEVELS))
+        self.assertEqual(sorted(C.VELOCITY_LEVELS), list(C.VELOCITY_LEVELS))
+
+    def test_the_velocity_setting_leaves_written_steps_alone(self):
+        self.press(0)
+        self.seq.set_velocity_setting(0)
+        self.assertEqual(self.clip.notes[0].velocity, 127)
+
+    def test_a_velocity_change_shows_in_the_status_bar(self):
+        self.seq.set_velocity_setting(1)
+        self.assertIn('velocity 70 (VELOCITY 2)', self.seq.messages[-1])
+
+    def test_a_velocity_change_off_the_sequencer_is_quiet(self):
+        self.seq.set_on_screen(False)
+        self.seq.set_velocity_setting(0)
+        self.assertEqual(getattr(self.seq, 'messages', []), [])
+        self.press(0)
+        self.assertEqual(self.clip.notes[0].velocity, C.VELOCITY_LEVELS[0])
 
     def test_strike_velocity_can_be_turned_off(self):
         # Patch the SEQUENCER module, not MIDI_Map. The script does
@@ -740,8 +869,9 @@ class Rendering(SeqTest):
         # Both directions. Gating on `total` renders step 5 and hides step 6;
         # gating on `total - 1` hides both, which is the off-by-one the focus
         # companion test is named for and could not see over here.
-        self.assertEqual(self.leds()[1], C.LANE_COLORS[0])  # step 5, last in loop
-        self.assertEqual(self.leds()[2], C.COLOR_STEP_OFF)  # step 6, past the loop
+        # Lane 0 is the bottom row in overview: pads 12-15.
+        self.assertEqual(self.leds()[13], C.LANE_COLORS[0])  # step 5, last in loop
+        self.assertEqual(self.leds()[14], C.COLOR_STEP_OFF)  # step 6, past the loop
 
     def test_the_in_loop_gate_holds_when_empty_steps_are_marked(self):
         # COLOR_STEP_EMPTY ships as 0, the same byte as COLOR_STEP_OFF, so the
@@ -755,7 +885,8 @@ class Rendering(SeqTest):
             self.clip.loop_end = 1.0                # four steps: 0..3
             self.seq.sent = []
             self.seq.refresh_state()
-            self.assertEqual(self.leds()[0], 40)                # in loop, marked
+            # Pad 1, not 0: step 0 is a beat and the beat marker overrides.
+            self.assertEqual(self.leds()[1], 40)                # in loop, marked
             self.assertEqual(self.leds()[4], C.COLOR_STEP_OFF)  # out of loop, dark
         finally:
             seqmod.COLOR_STEP_EMPTY = original
@@ -850,8 +981,8 @@ class Playhead(SeqTest):
         # The note matters: with an empty clip _paint() alone reproduces this
         # result, so the test could not tell a moved window from a re-read one.
         # COLOR_PLAYHEAD_ON is only reachable if the new page was read.
-        self.assertEqual(self.leds()[2], C.COLOR_PLAYHEAD_ON)
-        self.assertEqual([self.leds()[i] for i in (6, 10, 14)],
+        self.assertEqual(self.leds()[14], C.COLOR_PLAYHEAD_ON)   # lane 0: bottom row
+        self.assertEqual([self.leds()[i] for i in (2, 6, 10)],
                          [C.COLOR_PLAYHEAD] * 3)
 
     def test_paging_by_hand_stops_the_chase(self):
@@ -974,6 +1105,155 @@ class Navigation(SeqTest):
         self.press(0)
         self.assertEqual(self.clip.notes, [])
 
+    def test_holding_mod_shows_the_lane_picker(self):
+        # The lane you are editing is white; drums with notes are teal, the
+        # rest dark. Pad 12 is bottom-left, 36: the default lane.
+        self.clip.notes.append(FakeNote(38, 0.0, C.STEP, 100))     # pad 14
+        self.clip.notes.append(FakeNote(C.DEFAULT_LANE, 0.0, C.STEP, 100))
+        self.clip._fire('notes')
+        self.button(C.BTN_MOD, True)
+        leds = self.leds()
+        self.assertEqual(leds[12], C.COLOR_PICK_SELECTED)
+        self.assertEqual(leds[14], C.COLOR_PICK_NOTES)
+        self.assertEqual(leds[0], C.COLOR_STEP_OFF)
+        # Releasing brings the steps back: step 0 of lane 36 is lit.
+        self.button(C.BTN_MOD, False)
+        self.assertEqual(self.leds()[0], C.COLOR_STEP_ON)
+        self.assertEqual(self.leds()[12], self.seq._empty_color(12))
+        self.assertEqual(self.seq._led[13], C.COLOR_STEP_OFF)  # never lit
+
+    def test_picking_a_lane_moves_the_white_pad(self):
+        self.button(C.BTN_MOD, True)
+        self.press(15)                                  # -> 39
+        leds = self.leds()
+        self.assertEqual(leds[15], C.COLOR_PICK_SELECTED)
+        self.assertNotEqual(leds[12], C.COLOR_PICK_SELECTED)
+        self.button(C.BTN_MOD, False)
+
+    def test_the_picker_shows_loaded_rack_pads(self):
+        rack = FakeDrumRack({37: FakeDrumPad(37, [FakeDevice([], 'Snare')])})
+        self.song.view.selected_track = FakeTrack([rack])
+        self.button(C.BTN_MOD, True)
+        self.assertEqual(self.leds()[13], C.COLOR_PICK_LOADED)
+        self.button(C.BTN_MOD, False)
+
+    def test_the_picker_hides_the_playhead(self):
+        self.clip.play(12 * C.STEP)
+        self.button(C.BTN_MOD, True)
+        self.assertEqual(self.leds()[12], C.COLOR_PICK_SELECTED)
+        self.clip.play(13 * C.STEP)
+        self.assertNotIn(C.COLOR_PLAYHEAD, self.leds())
+        self.button(C.BTN_MOD, False)
+        self.assertEqual(self.leds()[13], C.COLOR_PLAYHEAD)
+
+    def _kit(self, *pitches):
+        pads = dict((p, FakeDrumPad(p, [FakeDevice([], 'Drum')])) for p in pitches)
+        self.song.view.selected_track = FakeTrack([FakeDrumRack(pads)])
+
+    def test_the_picker_stops_at_the_edge_of_the_kit(self):
+        # A 16-pad kit on 36-51: the next bank up would be all dark.
+        self._kit(*range(36, 52))
+        self.button(C.BTN_MOD, True)
+        self.button(C.BTN_VIEW, True)             # Record + Stop: lane bank
+        self.button(C.BTN_RIGHT)
+        self.assertEqual(self.seq._lane_base, 36)
+        self.assertIn('No more drums above D#2', self.seq.messages[-1])
+        self.button(C.BTN_LEFT)
+        self.assertEqual(self.seq._lane_base, 36)
+        self.assertIn('No more drums below C1', self.seq.messages[-1])
+        self.button(C.BTN_VIEW, False)
+        self.button(C.BTN_MOD, False)
+
+    def test_the_picker_skips_an_empty_bank(self):
+        self._kit(36, 70)                       # 52-67 empty, 68-83 has a sound
+        self.button(C.BTN_MOD, True)
+        self.button(C.BTN_VIEW, True)             # Record + Stop: lane bank
+        self.button(C.BTN_RIGHT)
+        self.assertEqual(self.seq._lane_base, 68)
+        self.button(C.BTN_LEFT)
+        self.assertEqual(self.seq._lane_base, 36)
+        self.button(C.BTN_VIEW, False)
+        self.button(C.BTN_MOD, False)
+
+    def test_notes_or_the_lane_keep_a_bank_reachable(self):
+        self._kit(*range(36, 52))
+        self.clip.notes.append(FakeNote(60, 0.0, C.STEP, 100))   # bank 52-67
+        self.button(C.BTN_MOD, True)
+        self.button(C.BTN_VIEW, True)             # Record + Stop: lane bank
+        self.button(C.BTN_RIGHT)
+        self.assertEqual(self.seq._lane_base, 52)
+        self.seq._lane = 90                     # e.g. picked before the kit changed
+        self.button(C.BTN_RIGHT)
+        self.assertEqual(self.seq._lane_base, 84)
+        self.button(C.BTN_VIEW, False)
+        self.button(C.BTN_MOD, False)
+
+    def test_mod_arrows_change_the_clip_length_by_a_bar(self):
+        # Navigation's clip is 32 steps.
+        self.button(C.BTN_MOD, True)
+        self.button(C.BTN_RIGHT)
+        self.assertAlmostEqual(self.clip.loop_end, 48 * C.STEP)
+        self.assertIn('Clip length 3 bars (48 steps)', self.seq.messages[-1])
+        self.button(C.BTN_LEFT)
+        self.button(C.BTN_LEFT)
+        self.assertAlmostEqual(self.clip.loop_end, 16 * C.STEP)
+        self.assertEqual(self.seq._lane_base, C.LANE_SELECT_BASE)  # untouched
+        self.button(C.BTN_MOD, False)
+
+    def test_the_clip_length_snaps_to_whole_bars(self):
+        self.clip.loop_end = 20 * C.STEP
+        self.button(C.BTN_MOD, True)
+        self.button(C.BTN_LEFT)
+        self.assertAlmostEqual(self.clip.loop_end, 16 * C.STEP)
+        self.clip.loop_end = 20 * C.STEP
+        self.button(C.BTN_RIGHT)
+        self.assertAlmostEqual(self.clip.loop_end, 32 * C.STEP)
+        self.button(C.BTN_MOD, False)
+
+    def test_the_clip_length_stops_at_one_bar_and_at_steps_max(self):
+        self.clip.loop_end = 16 * C.STEP
+        self.button(C.BTN_MOD, True)
+        self.button(C.BTN_LEFT)
+        self.assertAlmostEqual(self.clip.loop_end, 16 * C.STEP)
+        self.assertIn('the shortest', self.seq.messages[-1])
+        self.assertNotEqual(self.btn_led(C.BTN_LEFT), C.BTN_LED_ON)
+        self.assertEqual(self.btn_led(C.BTN_RIGHT), C.BTN_LED_ON)
+        self.clip.loop_end = C.STEPS_MAX * C.STEP
+        self.clip.end_marker = self.clip.loop_end
+        self.button(C.BTN_RIGHT)
+        self.assertAlmostEqual(self.clip.loop_end, C.STEPS_MAX * C.STEP)
+        self.assertIn('the longest', self.seq.messages[-1])
+        self.button(C.BTN_MOD, False)
+
+    def test_mod_stop_arrows_do_not_switch_the_view(self):
+        self.button(C.BTN_MOD, True)
+        self.button(C.BTN_VIEW, True)
+        self.button(C.BTN_RIGHT)
+        self.button(C.BTN_VIEW, False)
+        self.button(C.BTN_MOD, False)
+        self.assertEqual(self.seq._view, VIEW_FOCUS)
+        self.assertAlmostEqual(self.clip.loop_end, 8.0)            # length kept
+
+    def test_without_a_drum_rack_every_bank_is_reachable(self):
+        self.button(C.BTN_MOD, True)
+        self.button(C.BTN_VIEW, True)             # Record + Stop: lane bank
+        self.button(C.BTN_RIGHT)
+        self.assertEqual(self.seq._lane_base, 52)
+        self.button(C.BTN_VIEW, False)
+        self.button(C.BTN_MOD, False)
+
+    def test_the_status_bar_names_the_lane(self):
+        self.button(C.BTN_MOD, True)
+        self.button(C.BTN_VIEW, True)             # Record + Stop: lane bank
+        self.assertIn('Lane C1 (36)', self.seq.messages[-1])
+        self.assertIn('C1-D#2', self.seq.messages[-1])
+        self.press(13)                                  # -> 37
+        self.assertIn('Lane C#1 (37)', self.seq.messages[-1])
+        self.button(C.BTN_RIGHT)                        # picker bank up
+        self.assertIn('E2-G3', self.seq.messages[-1])
+        self.button(C.BTN_VIEW, False)
+        self.button(C.BTN_MOD, False)
+
     def test_lane_knob_scrolls(self):
         self.seq.receive_midi(cc(C.KNOB_CHANNEL, C.CC_LANE, 65))
         self.press(0)
@@ -1023,19 +1303,26 @@ class Views(SeqTest):
         self.button(C.BTN_VIEW)
 
     def test_overview_maps_rows_to_lanes_and_columns_to_steps(self):
-        self.press(4 + 2)               # row 1, col 2
+        self.press(4 + 2)               # row 1 from the top, col 2
         note = self.clip.notes[0]
-        self.assertEqual(note.pitch, C.DEFAULT_LANE + 1)
+        self.assertEqual(note.pitch, C.DEFAULT_LANE + 2)
         self.assertAlmostEqual(note.start_time, 2 * C.STEP)
 
     def test_overview_colours_rows_by_lane(self):
-        self.press(0)                   # row 0
-        self.press(4)                   # row 1
+        self.press(12)                  # bottom row: the lowest lane
+        self.press(8)                   # the row above it
         self.seq.sent = []
         self.seq.refresh_state()
         leds = self.leds()
-        self.assertEqual(leds[0], C.LANE_COLORS[0])
-        self.assertEqual(leds[4], C.LANE_COLORS[1])
+        self.assertEqual(leds[12], C.LANE_COLORS[0])
+        self.assertEqual(leds[8], C.LANE_COLORS[1])
+
+    def test_overview_puts_the_lowest_lane_on_the_bottom_row(self):
+        # Matches Live's piano roll, where the kick sits at the bottom.
+        self.press(12)
+        self.assertEqual(self.clip.notes[0].pitch, C.DEFAULT_LANE)
+        self.press(1)
+        self.assertEqual(self.clip.notes[1].pitch, C.DEFAULT_LANE + 3)
 
     def test_overview_pages_four_steps_at_a_time(self):
         self.button(C.BTN_RIGHT)
@@ -1062,11 +1349,13 @@ class Views(SeqTest):
         # has more rows than that, so the arrows bank the picker while held.
         base = self.seq._lane_base
         self.button(C.BTN_MOD, True)
+        self.button(C.BTN_VIEW, True)             # Record + Stop: lane bank
         self.button(C.BTN_RIGHT)
         self.assertEqual(self.seq._lane_base, base + 16)
         self.button(C.BTN_LEFT)
         self.button(C.BTN_LEFT)
         self.assertEqual(self.seq._lane_base, base - 16)
+        self.button(C.BTN_VIEW, False)
         self.button(C.BTN_MOD, False)
 
     def test_the_lane_base_starts_inside_the_range_the_picker_derives(self):
@@ -1092,6 +1381,7 @@ class Views(SeqTest):
         # stepping back off a stop must return to the original 16-pitch series
         # rather than stranding the picker on 0+16k with 36 unreachable.
         self.button(C.BTN_MOD, True)
+        self.button(C.BTN_VIEW, True)             # Record + Stop: lane bank
         for _ in range(8):
             self.button(C.BTN_LEFT)             # walk into the bottom stop
         self.assertEqual(self.seq._lane_base, 0)            # pitches 0-15
@@ -1101,6 +1391,7 @@ class Views(SeqTest):
         for _ in range(5):
             self.button(C.BTN_RIGHT)            # walk into the top stop
         self.assertEqual(self.seq._lane_base, 112)          # pitches 112-127
+        self.button(C.BTN_VIEW, False)
         self.button(C.BTN_MOD, False)
 
     def test_mod_arrows_do_not_page_steps(self):
@@ -1112,18 +1403,73 @@ class Views(SeqTest):
 
     def test_lane_picker_follows_its_bank(self):
         self.button(C.BTN_MOD, True)
+        self.button(C.BTN_VIEW, True)             # Record + Stop: lane bank
         self.button(C.BTN_RIGHT)              # base += 16
         self.press(0)                         # MOD + pad 0
+        self.button(C.BTN_VIEW, False)
         self.button(C.BTN_MOD, False)
         self.assertEqual(self.seq._lane,
                          lane_for_pad(0, C.LANE_SELECT_BASE + 16))
 
     def test_mod_pad_scrolls_the_lane_window_into_view(self):
         self.button(C.BTN_MOD, down=True)
-        self.press(12)                  # bottom-left -> 36... top row of window
+        self.press(12)                  # bottom-left -> 36, bottom row of window
         self.button(C.BTN_MOD, down=False)
-        self.press(0)
+        self.press(12)
         self.assertEqual(self.clip.notes[0].pitch, lane_for_pad(12))
+
+
+class DeviceNavigation(SeqTest):
+    """VIEW + arrows move the blue hand; a plain VIEW tap still flips the grid."""
+
+    def setUp(self):
+        SeqTest.setUp(self)
+        self.tom = FakeDevice([], 'Hi Tom')
+        self.kick = FakeDevice([], 'Kick')
+        self.rack = FakeDrumRack({50: FakeDrumPad(50, [self.tom]),
+                                  36: FakeDrumPad(36, [self.kick])})
+        self.after = FakeDevice([], 'Reverb')
+        track = FakeTrack([self.rack, self.after])
+        self.song.view.selected_track = track
+        self.view = self.song.view
+
+    def pick(self, pad_index):
+        self.button(C.BTN_MOD, down=True)
+        self.press(pad_index)
+        self.button(C.BTN_MOD, down=False)
+
+    def view_arrow(self, arrow):
+        self.button(C.BTN_VIEW, down=True)
+        self.button(arrow)
+        self.button(C.BTN_VIEW, down=False)
+
+    def test_picking_a_lane_selects_its_drum_pad(self):
+        self.pick(2)                        # top row, third pad -> 50
+        self.assertIs(self.rack.view.selected_drum_pad, self.rack.drum_pads[50])
+
+    def test_view_right_steps_into_the_picked_drum_then_on(self):
+        self.pick(2)
+        self.view_arrow(C.BTN_RIGHT)
+        self.assertIs(self.view.selected_device, self.tom)
+        self.view_arrow(C.BTN_RIGHT)
+        self.assertIs(self.view.selected_device, self.after)
+        self.view_arrow(C.BTN_RIGHT)        # stops at the end, no wrap
+        self.assertIs(self.view.selected_device, self.after)
+        self.view_arrow(C.BTN_LEFT)
+        self.view_arrow(C.BTN_LEFT)
+        self.assertIs(self.view.selected_device, self.rack)
+
+    def test_view_arrow_neither_flips_the_view_nor_pages(self):
+        self.clip.loop_end = 8.0            # two banks, so paging could move
+        self.view_arrow(C.BTN_RIGHT)
+        self.assertEqual(self.seq._view, VIEW_FOCUS)
+        self.assertEqual(self.seq._bank, 0)
+
+    def test_a_view_tap_still_flips_the_view(self):
+        self.button(C.BTN_VIEW, down=True)
+        self.assertEqual(self.seq._view, VIEW_FOCUS)    # not until release
+        self.button(C.BTN_VIEW, down=False)
+        self.assertEqual(self.seq._view, VIEW_OVERVIEW)
 
 
 class OffsetLoop(SeqTest):
@@ -1165,7 +1511,7 @@ class OffsetLoop(SeqTest):
         self.button(C.BTN_VIEW)                 # overview
         self.seq.sent = []
         self.seq.refresh_state()
-        self.assertEqual(self.leds()[2], C.LANE_COLORS[0])
+        self.assertEqual(self.leds()[14], C.LANE_COLORS[0])     # lane 0: bottom row
 
     def test_the_playhead_is_relative_to_the_loop_start(self):
         self.clip.play(1.0 + 2 * C.STEP)
@@ -1225,7 +1571,23 @@ class Lifecycle(SeqTest):
         # old playhead test: _clamp_pages moves it before anything is drawn, so
         # dropping the _render() from _on_loop_changed stayed green while the
         # device kept showing a page the loop no longer has.
-        self.assertEqual(self.leds()[4], C.COLOR_STEP_OFF)
+        # Step 4 of bank 0 is empty: a beat marker, not bank 1's note.
+        self.assertEqual(self.leds()[4], self.seq._empty_color(4))
+
+    def test_shortening_the_loop_under_the_playhead_drops_it(self):
+        # _on_playhead range-checks a step only when it moves, so a brace
+        # dragged in under a playing step is the loop listener's to clear --
+        # or the playhead stays painted on a pad past the loop end until the
+        # next step change, and following stays off if paging had stopped it.
+        self.clip.play(10 * C.STEP)
+        self.assertEqual(self.leds()[10], C.COLOR_PLAYHEAD)
+        self.seq._follow = False
+        self.clip.set_loop_end(self.clip.loop_start + 8 * C.STEP)
+        self.assertIsNone(self.seq._playhead)
+        self.assertEqual(self.leds()[10], C.COLOR_STEP_OFF)
+        self.assertEqual(self.seq._follow, C.FOLLOW_PLAYHEAD)
+        self.clip.play(10 * C.STEP + 0.01)              # Live not yet wrapped
+        self.assertIsNone(self.seq._playhead)
 
     def test_dragging_the_front_of_the_loop_redraws(self):
         # loop_start moves both the step count and the absolute time every index
@@ -1325,11 +1687,46 @@ class MidiPlumbing(SeqTest):
         lines = [l for l in self.c_instance.log if 'exception in notes listener' in l]
         self.assertEqual(len(lines), 2)         # but a new one is still heard
 
-    def test_transport_button_toggles_playback(self):
+    def test_play_launches_the_bound_clip(self):
+        self.button(C.BTN_PLAY)
+        self.assertEqual(self.clip.fired, 1)
+        self.assertTrue(self.clip.is_triggered)
+
+    def test_play_on_a_playing_clip_stops_it(self):
+        self.clip.play(0.0)
+        self.button(C.BTN_PLAY)
+        self.assertFalse(self.clip.is_playing)
+        self.assertEqual(self.clip.fired, 0)
+
+    def test_play_on_a_queued_clip_cancels_the_launch(self):
+        self.button(C.BTN_PLAY)
+        self.button(C.BTN_PLAY)
+        self.assertEqual(self.clip.fired, 1)
+        self.assertFalse(self.clip.is_triggered)
+
+    def test_mod_play_toggles_the_transport_and_leaves_the_clip(self):
+        self.button(C.BTN_MOD, True)
         self.button(C.BTN_PLAY)
         self.assertTrue(self.song.is_playing)
         self.button(C.BTN_PLAY)
         self.assertFalse(self.song.is_playing)
+        self.button(C.BTN_MOD, False)
+        self.assertEqual(self.clip.fired, 0)
+
+    def test_play_with_no_clip_toggles_the_transport(self):
+        self.song.view.select(None)
+        self.button(C.BTN_PLAY)
+        self.assertTrue(self.song.is_playing)
+        self.button(C.BTN_PLAY)
+        self.assertFalse(self.song.is_playing)
+
+    def test_play_on_an_arrangement_clip_toggles_the_transport(self):
+        clip = FakeClip()
+        clip.is_arrangement_clip = True
+        self.song.view.select(clip)
+        self.button(C.BTN_PLAY)
+        self.assertEqual(clip.fired, 0)
+        self.assertTrue(self.song.is_playing)
 
 
 # --------------------------------------------------------------------- config
@@ -1455,16 +1852,12 @@ class RetiredClaims(unittest.TestCase):
          'there are six'),
     )
 
-    # STEPSEQ-BRIEF.md is the original build brief, kept verbatim as history
-    # and superseded by STEPSEQ.md. It is not held to these.
-    EXEMPT = ('STEPSEQ-BRIEF.md',)
-
     def test_no_retired_claim_survives_anywhere_in_the_docs(self):
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         documents = []
         for directory in (root, os.path.join(root, 'docs')):
             for name in sorted(os.listdir(directory)):
-                if name.endswith('.md') and name not in self.EXEMPT:
+                if name.endswith('.md'):
                     documents.append(os.path.join(directory, name))
         self.assertTrue(documents, 'found no documents to check')
 
@@ -1480,6 +1873,48 @@ class RetiredClaims(unittest.TestCase):
                                             number, phrase, why))
         self.assertEqual(survivors, [],
                          'retired claims are back:\n    ' + '\n    '.join(survivors))
+
+
+class LauncherDeviceNav(unittest.TestCase):
+    """MVave_SMC_PAD/DeviceNav.py, by path: Stop + arrows on presets 1 and 3."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        spec = importlib.util.spec_from_file_location(
+            'pad_device_nav', os.path.join(root, 'MVave_SMC_PAD', 'DeviceNav.py'))
+        cls.nav = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.nav)
+
+    def setUp(self):
+        self.tom = FakeDevice([], 'Hi Tom')
+        self.rack = FakeDrumRack({50: FakeDrumPad(50, [self.tom])})
+        self.after = FakeDevice([], 'Reverb')
+        self.track = FakeTrack([self.rack, self.after])
+
+    def test_the_selected_drum_comes_right_after_its_rack(self):
+        self.rack.view.selected_drum_pad = self.rack.drum_pads[50]
+        self.assertEqual(self.nav.device_list(self.track),
+                         [self.rack, self.tom, self.after])
+
+    def test_no_selected_pad_lists_just_the_track(self):
+        self.assertEqual(self.nav.device_list(self.track), [self.rack, self.after])
+
+    def test_step_stops_at_both_ends(self):
+        items = ['a', 'b', 'c']
+        self.assertEqual(self.nav.step(items, 'b', 1), 'c')
+        self.assertEqual(self.nav.step(items, 'c', 1), 'c')
+        self.assertEqual(self.nav.step(items, 'a', -1), 'a')
+
+    def test_step_from_an_unknown_item_lands_on_the_first(self):
+        self.assertEqual(self.nav.step(['a', 'b'], 'zzz', 1), 'a')
+        self.assertIsNone(self.nav.step([], 'a', 1))
+
+    def test_tracks_then_returns_then_master(self):
+        song = type('S', (), {'visible_tracks': ['t1', 't2'],
+                              'return_tracks': ['r'], 'master_track': 'm'})()
+        self.assertEqual(self.nav.track_list(song), ['t1', 't2', 'r', 'm'])
 
 
 class SourceFiles(unittest.TestCase):
@@ -1646,7 +2081,26 @@ class Configuration(unittest.TestCase):
 class ButtonLeds(SeqTest):
     """The five buttons show state, when the device is set to accept feedback."""
 
-    def test_play_button_lights_with_the_transport(self):
+    def test_play_button_lights_with_the_clip(self):
+        self.seq.sent = []
+        self.button(C.BTN_PLAY)                      # queues the clip
+        self.assertEqual(self.btn_led(C.BTN_PLAY), C.BTN_LED_ON)
+        self.clip.play(0.0)
+        self.seq.sent = []
+        self.button(C.BTN_PLAY)                      # stops it again
+        self.assertEqual(self.btn_led(C.BTN_PLAY), C.BTN_LED_OFF)
+
+    def test_play_button_follows_a_launch_from_the_mouse(self):
+        # The status listener repaints the buttons, so a clip launched in Live
+        # lights play even though no step moved.
+        self.seq.sent = []
+        self.clip.fire()
+        self.assertEqual(self.btn_led(C.BTN_PLAY), C.BTN_LED_ON)
+        self.clip.stop()
+        self.assertEqual(self.btn_led(C.BTN_PLAY), C.BTN_LED_OFF)
+
+    def test_play_button_lights_with_the_transport_without_a_clip(self):
+        self.song.view.select(None)
         self.seq.sent = []
         self.button(C.BTN_PLAY)                      # starts the transport
         self.assertTrue(self.song.is_playing)
@@ -1693,14 +2147,71 @@ class ButtonLeds(SeqTest):
         self.assertEqual(self.btn_writes(C.BTN_PLAY), [])
         self.assertEqual(self.btn_writes(C.BTN_VIEW), [])
 
-    def test_the_paging_buttons_are_never_written(self):
-        # Only three of the five carry state; the arrows have none to show.
-        self.button(C.BTN_PLAY)
+    def arrow(self, note):
+        """What the device holds for an arrow LED. The writes are diffed, so
+        an arrow already dark is never re-sent and btn_led() cannot see it."""
+        return self.seq._btn_led.get(note)
+
+    def test_the_arrows_are_dark_on_a_one_page_loop(self):
+        # A four-beat loop is one focus page: neither arrow goes anywhere.
+        self.seq.refresh_state()
+        self.assertEqual(self.arrow(C.BTN_LEFT), C.BTN_LED_OFF)
+        self.assertEqual(self.arrow(C.BTN_RIGHT), C.BTN_LED_OFF)
+
+    def test_the_arrows_light_towards_the_other_pages(self):
+        self.clip.set_loop_end(self.clip.loop_start + 48 * C.STEP)   # 3 pages
+        self.assertEqual(self.arrow(C.BTN_LEFT), C.BTN_LED_OFF)
+        self.assertEqual(self.arrow(C.BTN_RIGHT), C.BTN_LED_ON)
+        self.button(C.BTN_RIGHT)                                     # page 2
+        self.assertEqual(self.arrow(C.BTN_LEFT), C.BTN_LED_ON)
+        self.assertEqual(self.arrow(C.BTN_RIGHT), C.BTN_LED_ON)
+        self.button(C.BTN_RIGHT)                                     # page 3
+        self.assertEqual(self.arrow(C.BTN_LEFT), C.BTN_LED_ON)
+        self.assertEqual(self.arrow(C.BTN_RIGHT), C.BTN_LED_OFF)
+
+    def test_the_arrows_count_overview_pages(self):
+        # Overview pages are 4 steps, so the same 16-step loop has 4 of them.
         self.button(C.BTN_VIEW)
-        self.button(C.BTN_LEFT)
-        self.button(C.BTN_RIGHT)
-        self.assertEqual(self.btn_writes(C.BTN_LEFT), [])
-        self.assertEqual(self.btn_writes(C.BTN_RIGHT), [])
+        self.assertEqual(self.arrow(C.BTN_RIGHT), C.BTN_LED_ON)
+        self.assertEqual(self.arrow(C.BTN_LEFT), C.BTN_LED_OFF)
+
+    def test_with_mod_held_the_arrows_show_the_drum_banks(self):
+        # A 16-pad kit: no bank either side, though the loop has pages.
+        pads = dict((p, FakeDrumPad(p, [FakeDevice([], 'Drum')]))
+                    for p in range(36, 52))
+        self.song.view.selected_track = FakeTrack([FakeDrumRack(pads)])
+        self.clip.set_loop_end(self.clip.loop_start + 32 * C.STEP)
+        self.assertEqual(self.arrow(C.BTN_RIGHT), C.BTN_LED_ON)
+        self.button(C.BTN_MOD, True)
+        self.button(C.BTN_VIEW, True)             # Record + Stop: lane bank
+        self.assertEqual(self.arrow(C.BTN_LEFT), C.BTN_LED_OFF)
+        self.assertEqual(self.arrow(C.BTN_RIGHT), C.BTN_LED_OFF)
+        self.button(C.BTN_VIEW, False)
+        self.button(C.BTN_MOD, False)
+        self.assertEqual(self.arrow(C.BTN_RIGHT), C.BTN_LED_ON)
+
+    def test_arrow_leds_can_be_switched_off(self):
+        seqmod = SEQ_MODULE
+        original = seqmod.ARROW_LEDS
+        try:
+            seqmod.ARROW_LEDS = False
+            self.seq.sent = []
+            self.clip.set_loop_end(self.clip.loop_start + 32 * C.STEP)
+            self.button(C.BTN_RIGHT)
+            self.assertEqual(self.btn_writes(C.BTN_LEFT), [])
+            self.assertEqual(self.btn_writes(C.BTN_RIGHT), [])
+        finally:
+            seqmod.ARROW_LEDS = original
+
+    def test_every_button_the_script_lights_has_an_led_in_the_preset(self):
+        # A button record's last byte is its LED number (inferred); 0xff left
+        # Stop and the arrows dark however often the script lit them.
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data = open(os.path.join(root, 'presets',
+                                 'preset2-sequencer-drums.spc'), 'rb').read()
+        leds = dict((data[i * 23 + 2], data[i * 23 + 22]) for i in range(5))
+        for note in (C.BTN_PLAY, C.BTN_VIEW, C.BTN_MOD, C.BTN_LEFT, C.BTN_RIGHT):
+            self.assertEqual(leds[note], note)
 
     def test_all_leds_off_clears_the_buttons(self):
         self.button(C.BTN_VIEW)                      # light one
@@ -1741,7 +2252,11 @@ NOT_NOTES = frozenset((
     'TEMPOCONTROL', 'MASTERVOLUME', 'CUELEVEL', 'CROSSFADER', 'TRACKVOL',
     'TRACKPAN', 'TRACKSENDA', 'TRACKSENDB', 'TRACKSENDC', 'PARAMCONTROL',
     # Drum-rack pitches Live translates TO; never transmitted.
-    'DRUM_PADS'))
+    'DRUM_PADS',
+    # Preset 3's keyboard settings: channels, octaves, a flag and colours.
+    'KEYS_CHANNEL', 'KEYS_ROOT_NOTE', 'KEYS_OCTAVE', 'KEYS_OCTAVE_MIN',
+    'KEYS_OCTAVE_MAX', 'KEYS_FOLLOW_LIVE_SCALE', 'KEYS_SCALE',
+))
 
 
 # NOT_NOTES exempts these from the COLLISION test, correctly -- a CC and a note
@@ -1750,7 +2265,11 @@ NOT_NOTES = frozenset((
 # where Live disables the whole surface silently.
 NOT_INDEXES = frozenset((
     'BUTTONCHANNEL', 'SLIDERCHANNEL', 'MESSAGETYPE', 'PADCHANNEL',
-    'TSB_X', 'TSB_Y', 'TEMPO_TOP', 'TEMPO_BOTTOM'))
+    'TSB_X', 'TSB_Y', 'TEMPO_TOP', 'TEMPO_BOTTOM',
+    # Preset 3's keyboard settings: channels, octaves, a flag and colours.
+    'KEYS_CHANNEL', 'KEYS_ROOT_NOTE', 'KEYS_OCTAVE', 'KEYS_OCTAVE_MIN',
+    'KEYS_OCTAVE_MAX', 'KEYS_FOLLOW_LIVE_SCALE', 'KEYS_SCALE',
+))
 
 
 def _launcher_indexes(pad):
@@ -1903,7 +2422,8 @@ class KnobScript(unittest.TestCase):
         self.knobs.build_midi_map('map')
         forwarded = set(MIDI_MAP.forwarded)
         for cc in (tuple(KNOBS_MODULE.NAV_CCS)
-                   + tuple(sorted(KNOBS_MODULE.MACRO_BY_CC))):
+                   + tuple(sorted(KNOBS_MODULE.MACRO_BY_CC))
+                   + tuple(sorted(KNOBS_MODULE.PARAM_BY_CC))):
             self.assertIn(('cc', KNOBS_MODULE.CHANNEL, cc), forwarded)
 
     def test_unowned_midi_goes_back_to_the_framework(self):
@@ -2042,6 +2562,1381 @@ class KnobScript(unittest.TestCase):
         # And the two conventions must not be silently interchangeable.
         self.assertNotEqual(KNOBS_MODULE.decode_relative(127, 'centre'),
                             KNOBS_MODULE.decode_relative(127, 'twos'))
+
+
+class PresetSwitchRepaint(unittest.TestCase):
+    """MVave_SMC_KNOBS repaints the pad lights when the device changes layout.
+
+    The status bytes are the four states captured from the device on
+    2026-10-08 (preset 1 bank A/B and preset 2 bank A/B) and preset 3 bank A,
+    captured on 2026-10-20.
+    """
+
+    BASE = (0xF0, 0x00, 0x32, 0x0D, 0x21, 0x01, 0x00, 0x00, 0x02, 0x00, 0x00,
+            0x00, 0x00, 0x40, 0x01, 0x00, 0x00, 0x78, 0x00, 0x48, 0x21, 0x00,
+            0x00, 0x00, 0x01, 0x00, 0x02, 0x04)
+    LAUNCHER = BASE + (0x00, 0x00, 0x20, 0x0F, 0xF7)
+    MIXER = BASE + (0x00, 0x10, 0x00, 0x0F, 0xF7)
+    SEQUENCER = BASE + (0x08, 0x00, 0x00, 0x0F, 0xF7)
+    DRUMS = BASE + (0x08, 0x10, 0x60, 0x0E, 0xF7)
+    KEYS = BASE + (0x10, 0x00, 0x40, 0x0E, 0xF7)
+
+    class Script(object):
+        def __init__(self, name, log):
+            self.name, self.log = name, log
+
+        def refresh_state(self):
+            pass
+
+        def schedule_message(self, delay, callback):
+            self.log.append((delay, self.name))
+
+    def setUp(self):
+        self.knobs = KNOBS_MODULE.MVave_SMC_KNOBS(FakeCInstance())
+        self.scheduled = []
+        scripts = {'MVave_SMC_PAD': [self.Script('pad', self.scheduled)],
+                   'MVave_SMC_STEPSEQ': [self.Script('seq', self.scheduled)]}
+        self.knobs._instances = lambda name: scripts[name]
+        # Already on the startup preset: StartupPreset tests the move itself.
+        self.knobs._startup_pending = False
+
+    def _last_repainted(self, status):
+        del self.scheduled[:]
+        self.knobs.receive_midi(status)
+        return max(self.scheduled)[1]
+
+    def test_the_status_is_33_bytes(self):
+        for status in (self.LAUNCHER, self.MIXER, self.SEQUENCER, self.DRUMS,
+                       self.KEYS):
+            self.assertEqual(len(status), KNOBS_MODULE.STATUS_LENGTH)
+
+    def test_the_status_decodes_to_preset_and_bank(self):
+        decode = KNOBS_MODULE.decode_status
+        self.assertEqual(decode(self.LAUNCHER), (0, 0))
+        self.assertEqual(decode(self.MIXER), (0, 1))
+        self.assertEqual(decode(self.SEQUENCER), (1, 0))
+        self.assertEqual(decode(self.DRUMS), (1, 1))
+        self.assertEqual(decode(self.KEYS), (2, 0))
+
+    def test_the_state_request_is_the_one_the_device_answered(self):
+        # Sent from the computer on 2026-10-20; the device replied in ~1 ms.
+        self.assertEqual(KNOBS_MODULE.STATE_REQUEST, (
+            0xF0, 0x00, 0x32, 0x0D, 0x41, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00,
+            0x00, 0x00, 0x40, 0x01, 0x00, 0x00, 0x6F, 0x01, 0xF7))
+
+    def test_the_status_unpacks_to_a_checksummed_flash_read(self):
+        packet = KNOBS_MODULE.unpack7(self.KEYS[1:-1])
+        self.assertEqual(packet[:3], [0x00, 0x59, 0x23])
+        self.assertEqual(KNOBS_MODULE.unpack7(KNOBS_MODULE.pack7(packet)), packet)
+        for status in (self.LAUNCHER, self.MIXER, self.SEQUENCER, self.DRUMS):
+            packet = KNOBS_MODULE.unpack7(status[1:-1])
+            self.assertEqual(packet[26], ~sum(packet[6:26]) & 0xFF)
+
+    def _requests(self, ticks=0):
+        sent = self.knobs.sent
+        for _ in range(ticks):
+            self.knobs.update_display()
+        return sent.count(KNOBS_MODULE.STATE_REQUEST)
+
+    def _settled(self, status):
+        # On a known layout, startup done, poll counter just reset.
+        self.knobs.receive_midi(status)
+        self.knobs._poll_ticks = 0
+        self.knobs._asked_this_tick = False
+        self.knobs.sent = []
+
+    def test_it_asks_every_poll_ticks_not_every_tick(self):
+        # Every request and reply flashes Live's MIDI indicators.
+        self._settled(self.LAUNCHER)
+        self.assertEqual(self._requests(KNOBS_MODULE.POLL_TICKS * 3), 3)
+
+    def test_after_a_switch_it_asks_every_tick_for_a_while(self):
+        # Switches come in runs; the second one should show at once.
+        self._settled(self.LAUNCHER)
+        self.knobs.receive_midi(self.MIXER)
+        fast = KNOBS_MODULE.SWITCH_FAST_TICKS
+        self.assertEqual(self._requests(fast - 1), fast - 1)
+        self.knobs.sent = []
+        self.knobs._poll_ticks = 0
+        self.assertEqual(self._requests(KNOBS_MODULE.POLL_TICKS * 2), 2)
+
+    def test_the_first_status_is_not_a_switch(self):
+        self.knobs._last_status = None
+        self._settled(self.LAUNCHER)
+        self.assertEqual(self._requests(KNOBS_MODULE.POLL_TICKS), 1)
+
+    def test_until_the_startup_preset_is_in_it_asks_every_tick(self):
+        self.knobs._startup_pending = True
+        self.knobs.sent = []
+        self.assertEqual(self._requests(3), 3)
+
+    def test_a_press_from_the_current_layout_asks_nothing(self):
+        self._settled(self.LAUNCHER)
+        for note in (1, 16, 17, 21):
+            self.knobs.port3_message((0x90, note, 127))
+        self.knobs.receive_midi((0xB0 | KNOBS_MODULE.CHANNEL, 17, 65))
+        self.assertEqual(self._requests(), 0)
+
+    def test_a_press_from_another_layout_asks_at_once(self):
+        cases = ((self.LAUNCHER, (0x90, 101, 127)),     # sequencer step
+                 (self.LAUNCHER, (0x90, 49, 127)),      # mixer, other bank
+                 (self.SEQUENCER, (0x90, 85, 127)),     # keyboard
+                 (self.KEYS, (0x90, 117, 127)),         # sequencer button
+                 (self.KEYS, (0xB0, 1, 65)),            # a macro knob
+                 (self.LAUNCHER, (0xB0, 21, 65)))       # a preset 3 knob
+        for status, message in cases:
+            self._settled(status)
+            if message[0] == 0x90:
+                self.knobs.port3_message(message)
+            else:
+                self.knobs.receive_midi(message)
+            self.assertEqual(self._requests(), 1, (status[28:30], message))
+
+    def test_a_chord_after_a_switch_asks_once(self):
+        self._settled(self.LAUNCHER)
+        for note in range(101, 117):
+            self.knobs.port3_message((0x90, note, 127))
+        self.assertEqual(self._requests(), 1)
+        self.knobs.update_display()
+        self.knobs.port3_message((0x90, 101, 127))
+        self.assertEqual(self._requests(), 2)
+
+    def test_releases_and_ambiguous_buttons_ask_nothing(self):
+        self._settled(self.SEQUENCER)
+        self.knobs.port3_message((0x90, 1, 0))          # a release
+        self.knobs.port3_message((0x90, 120, 127))      # its own arrow
+        self._settled(self.KEYS)
+        self.knobs.port3_message((0x90, 17, 127))       # shared with preset 1
+        self.assertEqual(self._requests(), 0)
+
+    def test_the_pad_and_sequencer_scripts_hand_it_their_messages(self):
+        saved = list(KNOBS_MODULE.MVave_SMC_KNOBS._active_instances)
+        KNOBS_MODULE.MVave_SMC_KNOBS._active_instances[:] = [self.knobs]
+        try:
+            self._settled(self.LAUNCHER)
+            SEQ_MODULE._tell_knobs((0x90, 101, 127))
+            self.assertEqual(self._requests(), 1)
+        finally:
+            KNOBS_MODULE.MVave_SMC_KNOBS._active_instances[:] = saved
+
+    def test_the_layout_table_agrees_with_the_pad_and_sequencer_maps(self):
+        M = _load_launcher_map()
+        notes = KNOBS_MODULE.LAYOUTS_BY_NOTE
+        clip_notes = [n for row in M.CLIPNOTEMAP for n in row]
+        mixer = M.TRACKMUTE + M.TRACKSOLO + M.TRACKREC + M.TRACKSTOP
+        for group, layouts in ((clip_notes, ((0, 0),)), (mixer, ((0, 1),)),
+                               (M.KEYS_NOTES, ((2, 0),)),
+                               (M.SETTINGS_NOTES, ((2, 1),)),
+                               (C.PAD_NOTES, ((1, 0),))):
+            for note in group:
+                if note >= 0:       # -1 = an unused slot in the map
+                    self.assertEqual(notes[note], layouts, note)
+        for note in (M.PLAY, M.STOP, M.REC, M.TRACKLEFT, M.TRACKRIGHT):
+            self.assertEqual(notes[note], ((0, None), (2, None)))
+        for note in (C.BTN_PLAY, C.BTN_VIEW, C.BTN_MOD, C.BTN_LEFT, C.BTN_RIGHT):
+            self.assertEqual(notes[note], ((1, None),))
+
+    def _with_velocity(self, status, setting):
+        packet = KNOBS_MODULE.unpack7(status[1:-1])
+        packet[KNOBS_MODULE.STATUS_VELOCITY] = setting
+        packet[26] = ~sum(packet[6:26]) & 0xFF
+        return (0xF0,) + tuple(KNOBS_MODULE.pack7(packet)) + (0xF7,)
+
+    def test_the_status_decodes_to_the_velocity_setting(self):
+        # The 2026-10-08 captures were taken on VELOCITY 2.
+        self.assertEqual(KNOBS_MODULE.decode_velocity(self.LAUNCHER), 1)
+        for setting in range(4):
+            status = self._with_velocity(self.SEQUENCER, setting)
+            self.assertEqual(len(status), KNOBS_MODULE.STATUS_LENGTH)
+            self.assertEqual(KNOBS_MODULE.decode_velocity(status), setting)
+            self.assertEqual(KNOBS_MODULE.decode_status(status), (1, 0))
+
+    def _velocity_calls(self):
+        got = []
+        seq = self.Script('seq', self.scheduled)
+        seq.set_velocity_setting = got.append
+        self.knobs._instances = lambda name: (
+            [seq] if name == 'MVave_SMC_STEPSEQ' else [])
+        return got
+
+    def test_a_velocity_change_reaches_the_sequencer_once(self):
+        got = self._velocity_calls()
+        self.knobs.receive_midi(self._with_velocity(self.SEQUENCER, 3))
+        del self.scheduled[:]
+        for setting in (1, 1, 0):
+            self.knobs.receive_midi(self._with_velocity(self.SEQUENCER, setting))
+        self.assertEqual(got, [1, 0])
+        self.assertEqual(self.scheduled, [])        # and repaints nothing
+
+    def test_the_velocity_the_controller_starts_on_is_not_passed_on(self):
+        # Whatever it was left on, the sequencer starts at VELOCITY 4.
+        got = self._velocity_calls()
+        self.knobs.receive_midi(self._with_velocity(self.SEQUENCER, 0))
+        self.knobs.receive_midi(self._with_velocity(self.SEQUENCER, 0))
+        self.assertEqual(got, [])
+
+    def test_a_status_differing_outside_preset_and_bank_repaints_nothing(self):
+        # Byte 22 is the VELOCITY setting (01 on 2026-10-08, 02 and 03 on
+        # 2026-10-20); only preset and bank repaint.
+        packet = KNOBS_MODULE.unpack7(self.LAUNCHER[1:-1])
+        packet[22] ^= 0x03
+        packet[26] = ~sum(packet[6:26]) & 0xFF
+        other = (0xF0,) + tuple(KNOBS_MODULE.pack7(packet)) + (0xF7,)
+        self.assertNotEqual(other, self.LAUNCHER)
+        self.assertEqual(len(other), KNOBS_MODULE.STATUS_LENGTH)
+        self.knobs.receive_midi(self.LAUNCHER)
+        del self.scheduled[:]
+        self.knobs.receive_midi(other)
+        self.assertEqual(self.scheduled, [])
+
+    def test_preset_3_is_not_the_sequencer(self):
+        self.assertEqual(self._last_repainted(self.KEYS), 'pad')
+
+    def test_the_owner_of_the_new_layout_repaints_last(self):
+        self.assertEqual(self._last_repainted(self.SEQUENCER), 'seq')
+        self.assertEqual(self._last_repainted(self.DRUMS), 'pad')
+        self.assertEqual(self._last_repainted(self.LAUNCHER), 'pad')
+        self.assertEqual(self._last_repainted(self.MIXER), 'pad')
+        self.assertEqual(self._last_repainted(self.SEQUENCER), 'seq')
+
+    def test_both_scripts_repaint_at_different_times(self):
+        self.knobs.receive_midi(self.LAUNCHER)
+        self.assertEqual(sorted(s for _, s in self.scheduled), ['pad', 'seq'])
+        self.assertEqual(len(set(d for d, _ in self.scheduled)), 2)
+
+    def test_the_once_a_second_repeat_repaints_nothing(self):
+        self.knobs.receive_midi(self.LAUNCHER)
+        del self.scheduled[:]
+        self.knobs.receive_midi(self.LAUNCHER)
+        self.assertEqual(self.scheduled, [])
+
+    def test_device_sysex_is_not_logged_as_unknown(self):
+        self.knobs.receive_midi(self.LAUNCHER)
+        self.knobs.receive_midi((0xF0, 0x00, 0x32, 0x0D, 0x49, 0x3F, 0xF7))
+        self.assertEqual(self.knobs.forwarded_to_framework, [])
+
+    def test_a_missing_sequencer_still_repaints_the_launcher(self):
+        self.knobs._instances = lambda name: (
+            [self.Script('pad', self.scheduled)] if name == 'MVave_SMC_PAD' else [])
+        self.knobs.receive_midi(self.SEQUENCER)
+        self.assertEqual([s for _, s in self.scheduled], ['pad'])
+
+    def test_instances_finds_the_loaded_sequencer(self):
+        seq_class = SEQ_MODULE.MVave_SMC_STEPSEQ
+        saved = list(seq_class._active_instances)
+        marker = object()
+        seq_class._active_instances[:] = [marker]
+        try:
+            self.assertEqual(KNOBS_MODULE.MVave_SMC_KNOBS._instances(
+                self.knobs, 'MVave_SMC_STEPSEQ'), [marker])
+        finally:
+            seq_class._active_instances[:] = saved
+
+
+
+class StartupPreset(unittest.TestCase):
+    """MVave_SMC_KNOBS puts the controller on preset 1, bank A when Live loads."""
+
+    S = PresetSwitchRepaint
+    # MidiSuite's own commands, captured with MIDI Monitor's spy on 2026-10-20.
+    MIDISUITE = {
+        (0x0A, 1): (0xF0, 0x00, 0x32, 0x09, 0x49, 0x00, 0x00, 0x00, 0x02, 0x0A,
+                    0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x5E, 0x03, 0xF7),
+        (0x0A, 0): (0xF0, 0x00, 0x32, 0x09, 0x49, 0x00, 0x00, 0x00, 0x02, 0x0A,
+                    0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x60, 0x03, 0xF7),
+        (0x0B, 1): (0xF0, 0x00, 0x32, 0x09, 0x49, 0x00, 0x00, 0x00, 0x02, 0x0B,
+                    0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x5C, 0x03, 0xF7),
+        (0x0B, 0): (0xF0, 0x00, 0x32, 0x09, 0x49, 0x00, 0x00, 0x00, 0x02, 0x0B,
+                    0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x5E, 0x03, 0xF7),
+    }
+    OK = (0xF0, 0x00, 0x32, 0x01, 0x08, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x01, 0xF7)
+    PRESET, BANK = 0x0A, 0x0B
+
+    def setUp(self):
+        self.knobs = KNOBS_MODULE.MVave_SMC_KNOBS(FakeCInstance())
+        self.scheduled = []
+        scripts = {'MVave_SMC_PAD': [self.S.Script('pad', self.scheduled)],
+                   'MVave_SMC_STEPSEQ': [self.S.Script('seq', self.scheduled)]}
+        self.knobs._instances = lambda name: scripts[name]
+        self.knobs.sent = []
+
+    def writes(self):
+        return [m for m in self.knobs.sent if m != KNOBS_MODULE.STATE_REQUEST]
+
+    def test_the_writes_are_the_ones_midisuite_sends(self):
+        self.assertEqual(KNOBS_MODULE.STATE_PRESET_ADDRESS, self.PRESET)
+        self.assertEqual(KNOBS_MODULE.STATE_BANK_ADDRESS, self.BANK)
+        for (address, value), captured in self.MIDISUITE.items():
+            self.assertEqual(KNOBS_MODULE.state_write(address, value), captured)
+
+    def test_the_default_is_preset_1_bank_a(self):
+        self.assertEqual((KNOBS_MODULE.STARTUP_PRESET, KNOBS_MODULE.STARTUP_BANK), (0, 0))
+
+    def test_already_there_writes_nothing(self):
+        self.knobs.receive_midi(self.S.LAUNCHER)
+        self.assertEqual(self.writes(), [])
+        self.assertTrue(self.scheduled)             # and repaints as usual
+
+    def test_another_preset_is_moved_to_preset_1(self):
+        self.knobs.receive_midi(self.S.KEYS)
+        self.assertEqual(self.writes(), [self.MIDISUITE[(self.PRESET, 0)]])
+        self.assertEqual(self.scheduled, [])        # the next status repaints
+        self.knobs.receive_midi(self.S.LAUNCHER)
+        self.assertEqual(len(self.writes()), 1)
+        self.assertEqual(max(self.scheduled)[1], 'pad')
+
+    def test_bank_b_is_moved_to_bank_a(self):
+        self.knobs.receive_midi(self.S.MIXER)
+        self.assertEqual(self.writes(), [self.MIDISUITE[(self.BANK, 0)]])
+
+    def test_preset_then_bank_one_write_per_status(self):
+        self.knobs.receive_midi(self.S.DRUMS)                   # preset 2, bank B
+        self.knobs.receive_midi(self.S.MIXER)                   # preset 1, bank B
+        self.knobs.receive_midi(self.S.LAUNCHER)
+        self.assertEqual(self.writes(), [self.MIDISUITE[(self.PRESET, 0)],
+                                         self.MIDISUITE[(self.BANK, 0)]])
+
+    def test_switching_later_is_left_alone(self):
+        self.knobs.receive_midi(self.S.LAUNCHER)
+        self.knobs.receive_midi(self.S.SEQUENCER)
+        self.assertEqual(self.writes(), [])
+        self.assertEqual(max(self.scheduled)[1], 'seq')
+
+    def test_a_device_that_ignores_the_write_is_given_up_on(self):
+        for _ in range(KNOBS_MODULE.STARTUP_TRIES + 3):
+            self.knobs.receive_midi(self.S.SEQUENCER)
+        self.assertEqual(len(self.writes()), KNOBS_MODULE.STARTUP_TRIES)
+        self.assertEqual(max(self.scheduled)[1], 'seq')         # repaints after all
+        self.assertTrue(any('did not take' in line for line in self.knobs._c_instance.log))
+
+    def test_none_leaves_the_controller_where_it_is(self):
+        saved = KNOBS_MODULE.STARTUP_PRESET, KNOBS_MODULE.STARTUP_BANK
+        KNOBS_MODULE.STARTUP_PRESET = KNOBS_MODULE.STARTUP_BANK = None
+        try:
+            self.knobs.receive_midi(self.S.DRUMS)
+            self.assertEqual(self.writes(), [])
+        finally:
+            KNOBS_MODULE.STARTUP_PRESET, KNOBS_MODULE.STARTUP_BANK = saved
+
+    def test_the_ok_reply_is_not_logged_as_unknown(self):
+        self.knobs.receive_midi(self.OK)
+        self.assertEqual(self.knobs.forwarded_to_framework, [])
+
+
+def _load_keys_mode():
+    """MVave_SMC_PAD/KeysMode.py and its pure siblings, without the package
+    __init__ (which imports Live): a stand-in package points at the folder."""
+    import importlib
+    import types
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if 'pad_keys_pkg' not in sys.modules:
+        pkg = types.ModuleType('pad_keys_pkg')
+        pkg.__path__ = [os.path.join(root, 'MVave_SMC_PAD')]
+        sys.modules['pad_keys_pkg'] = pkg
+    return importlib.import_module('pad_keys_pkg.KeysMode')
+
+
+class FakeKeyButton(object):
+    def __init__(self, note):
+        self.original = note
+        self.identifier, self.channel = note, 0
+        self.suppress_script_forwarding = False
+        self.listeners = []
+
+    def set_identifier(self, value):
+        self.identifier = value
+
+    def set_channel(self, value):
+        self.channel = value
+
+    def use_default_message(self):
+        self.identifier, self.channel = self.original, 0
+
+    def add_value_listener(self, listener):
+        self.listeners.append(listener)
+
+    def remove_value_listener(self, listener):
+        self.listeners.remove(listener)
+
+    def press(self):
+        for listener in list(self.listeners):
+            listener(127)
+        for listener in list(self.listeners):
+            listener(0)
+
+
+class FakeScaleSong(object):
+    """Live 12's song scale: root_note, scale_name, scale_intervals."""
+    NAMES = {'Major': (0, 2, 4, 5, 7, 9, 11), 'Minor': (0, 2, 3, 5, 7, 8, 10),
+             'Dorian': (0, 2, 3, 5, 7, 9, 10)}
+
+    def __init__(self):
+        self._root, self._name = 0, 'Major'
+        self.listeners = {'root_note': [], 'scale_name': []}
+
+    def _notify(self, name):
+        for listener in list(self.listeners[name]):
+            listener()
+
+    @property
+    def root_note(self):
+        return self._root
+
+    @root_note.setter
+    def root_note(self, value):
+        self._root = value
+        self._notify('root_note')
+
+    @property
+    def scale_name(self):
+        return self._name
+
+    @scale_name.setter
+    def scale_name(self, value):
+        if value not in self.NAMES:
+            raise RuntimeError('unknown scale %r' % value)
+        self._name = value
+        self._notify('scale_name')
+
+    @property
+    def scale_intervals(self):
+        return list(self.NAMES[self._name])
+
+    def add_root_note_listener(self, listener):
+        self.listeners['root_note'].append(listener)
+
+    def remove_root_note_listener(self, listener):
+        self.listeners['root_note'].remove(listener)
+
+    def add_scale_name_listener(self, listener):
+        self.listeners['scale_name'].append(listener)
+
+    def remove_scale_name_listener(self, listener):
+        self.listeners['scale_name'].remove(listener)
+
+
+class FakeKeysSurface(object):
+    def __init__(self, song):
+        self._song = song
+        self.sent, self.messages, self.rebuilds, self.logged = [], [], 0, []
+        # Scheduled calls run at once, unless a test holds them to look at
+        # the pads mid-flash; run_pending then plays the ticks out.
+        self.hold, self.pending = False, []
+
+    def song(self):
+        return self._song
+
+    def schedule_message(self, delay, callback, parameter=None):
+        if self.hold:
+            self.pending.append((delay, callback, parameter))
+        else:
+            callback(parameter)
+
+    def run_pending(self):
+        pending, self.pending = self.pending, []
+        for delay, callback, parameter in pending:
+            callback(parameter)
+
+    def request_rebuild_midi_map(self):
+        self.rebuilds += 1
+
+    def show_message(self, text):
+        self.messages.append(text)
+
+    def _send_midi(self, message):
+        self.sent.append(tuple(message))
+
+    def _log_exception(self, where):
+        self.logged.append(where)
+
+
+class Keyboard(unittest.TestCase):
+    """Preset 3's Launchpad-style keyboard: MVave_SMC_PAD/KeysMode.py."""
+
+    def setUp(self):
+        self.mod = _load_keys_mode()
+        self.M = _load_launcher_map()
+        self.song = FakeScaleSong()
+        self.surface = FakeKeysSurface(self.song)
+        self.note_map = [FakeKeyButton(n) for n in range(128)]
+        self.keys = self.mod.KeysMode(self.surface, self.note_map)
+
+    def tearDown(self):
+        # The only fault allowed is Live refusing a scale name it lacks.
+        self.assertEqual([w for w in self.surface.logged if w != 'keys: set Live scale'], [])
+
+    def played(self):
+        return [self.note_map[n].identifier for n in self.M.KEYS_NOTES]
+
+    def led(self, number):
+        return [m[2] for m in self.surface.sent if m[1] == number][-1]
+
+    def settings(self, index):
+        self.note_map[self.M.SETTINGS_NOTES[index]].press()
+
+    def test_c_major_rows_go_up_a_fourth(self):
+        self.assertEqual(self.played(), [60, 62, 64, 65, 65, 67, 69, 71,
+                                         71, 72, 74, 76, 76, 77, 79, 81])
+
+    def test_keyboard_pads_never_reach_the_script(self):
+        for note in self.M.KEYS_NOTES:
+            self.assertTrue(self.note_map[note].suppress_script_forwarding)
+
+    def test_roots_are_blue_fifths_purple_and_scale_notes_white(self):
+        self.assertEqual(self.led(self.M.KEYS_LEDS[0]), self.M.KEYS_ROOT)       # C3
+        self.assertEqual(self.led(self.M.KEYS_LEDS[9]), self.M.KEYS_ROOT)       # C4
+        self.assertEqual(self.led(self.M.KEYS_LEDS[5]), self.M.KEYS_FIFTH)      # G3
+        self.assertEqual(self.led(self.M.KEYS_LEDS[1]), self.M.KEYS_IN_SCALE)   # D3
+
+    def test_the_fifth_colour_is_one_the_palette_tells_apart(self):
+        # HARDWARE.md 3.2: 21 and 22-23 are one blue; 24 is the nearest
+        # well-separated anchor.
+        colours = {self.M.KEYS_ROOT, self.M.KEYS_FIFTH, self.M.KEYS_IN_SCALE,
+                   self.M.KEYS_OUT_OF_SCALE}
+        self.assertEqual(len(colours), 4)
+
+    def test_pressing_the_lit_root_switches_to_chromatic_and_back(self):
+        self.settings(0)    # C is already the root
+        self.assertEqual(self.played(), list(range(60, 76)))
+        self.assertEqual(self.song.root_note, 0)
+        self.assertIn('chromatic', self.surface.messages[-1])
+        # C# is outside C major: dark. C, G light as root and fifth.
+        self.assertEqual(self.led(self.M.KEYS_LEDS[1]), self.M.KEYS_OUT_OF_SCALE)
+        self.assertEqual(self.led(self.M.KEYS_LEDS[7]), self.M.KEYS_FIFTH)
+        self.assertEqual(self.led(self.M.KEYS_LEDS[12]), self.M.KEYS_ROOT)
+        # The key's own settings pad shows the layout: white-blue, then blue.
+        self.assertEqual(self.led(self.M.SETTINGS_LEDS[0]), self.M.KEYS_SETTINGS_CHROMATIC)
+        self.settings(0)
+        self.assertEqual(self.played()[:4], [60, 62, 64, 65])
+        self.assertEqual(self.led(self.M.SETTINGS_LEDS[0]), self.M.KEYS_SETTINGS_ROOT)
+
+    def test_the_chromatic_key_colour_is_its_own(self):
+        self.assertNotIn(self.M.KEYS_SETTINGS_CHROMATIC,
+                         (self.M.KEYS_SETTINGS_ROOT, self.M.KEYS_SETTINGS_WHITE,
+                          self.M.KEYS_SETTINGS_BLACK, self.M.KEYS_SETTINGS_SCALE, 0))
+
+    def test_changing_key_in_chromatic_keeps_the_white_blue(self):
+        self.settings(0)    # chromatic
+        self.settings(9)    # A, still chromatic
+        self.assertEqual(self.led(self.M.SETTINGS_LEDS[9]), self.M.KEYS_SETTINGS_CHROMATIC)
+        self.assertEqual(self.led(self.M.SETTINGS_LEDS[0]), self.M.KEYS_SETTINGS_WHITE)
+
+    def test_chromatic_follows_the_scale_and_key(self):
+        self.settings(0)
+        self.song.scale_name = 'Minor'
+        self.settings(2)    # D minor: starts on D, E is in, D# and F# are out
+        self.assertEqual(self.played()[:4], [62, 63, 64, 65])
+        self.assertEqual([self.led(self.M.KEYS_LEDS[i]) for i in range(5)],
+                         [self.M.KEYS_ROOT, self.M.KEYS_OUT_OF_SCALE,
+                          self.M.KEYS_IN_SCALE, self.M.KEYS_IN_SCALE,
+                          self.M.KEYS_OUT_OF_SCALE])
+
+    def test_locrian_has_no_fifth_to_light(self):
+        layout = self.mod.degree
+        self.assertIsNone(layout(67, 60, (0, 1, 3, 5, 6, 8, 10)))
+        self.assertEqual(layout(66, 60, (0, 1, 3, 5, 6, 8, 10)), 'scale')
+
+    def test_a_root_pad_sets_the_key_in_live_and_on_the_pads(self):
+        self.settings(2)    # D
+        self.assertEqual(self.song.root_note, 2)
+        self.assertEqual(self.played()[0], 62)
+        self.assertEqual(self.led(self.M.SETTINGS_LEDS[2]), self.M.KEYS_SETTINGS_ROOT)
+        self.assertIn('D Major', self.surface.messages[-1])
+
+    def test_next_scale_writes_live_and_relays_the_pads(self):
+        self.settings(self.mod.SCALE_NEXT)
+        self.assertEqual(self.song.scale_name, 'Minor')
+        self.assertEqual(self.played()[:4], [60, 62, 63, 65])
+
+    def test_previous_scale_wraps_to_the_last_scale(self):
+        self.settings(self.mod.SCALE_PREV)
+        self.assertIn('Minor Blues', self.surface.messages[-1])
+        self.assertEqual(self.played()[:4], [60, 63, 65, 66])
+
+    def scale_led(self, index):
+        return self.led(self.M.SETTINGS_LEDS[index])
+
+    def flicker_ticks(self):
+        return [p for p in self.surface.pending if p[1] == self.keys._flash_tick]
+
+    def flicker(self, index):
+        """The pad's colour now and after each flicker tick, to the end."""
+        seen = [self.scale_led(index)]
+        for _ in range(20):
+            if not self.flicker_ticks():
+                return seen
+            self.assertEqual({p[0] for p in self.flicker_ticks()},
+                             {self.M.KEYS_SCALE_FLASH_TICKS})
+            self.surface.run_pending()
+            seen.append(self.scale_led(index))
+        self.fail('the flicker never ended')
+
+    def expected_flicker(self):
+        white, green = self.M.KEYS_SCALE_FLASH, self.M.KEYS_SETTINGS_SCALE
+        return [white, green] * self.M.KEYS_SCALE_FLASH_TIMES
+
+    def test_next_scale_flickers_white_when_it_wraps_to_major(self):
+        self.settings(self.mod.SCALE_PREV)      # Major -> Minor Blues
+        self.surface.hold = True
+        self.settings(self.mod.SCALE_NEXT)      # back round to Major
+        self.assertIn('C Major', self.surface.messages[-1])
+        self.assertEqual(self.scale_led(self.mod.SCALE_PREV), self.M.KEYS_SETTINGS_SCALE)
+        self.assertEqual(self.flicker(self.mod.SCALE_NEXT), self.expected_flicker())
+
+    def test_previous_scale_flickers_white_when_it_lands_on_major(self):
+        self.settings(self.mod.SCALE_NEXT)      # Major -> Minor
+        self.surface.hold = True
+        self.settings(self.mod.SCALE_PREV)      # Minor -> Major
+        self.assertEqual(self.flicker(self.mod.SCALE_PREV), self.expected_flicker())
+
+    def test_the_flicker_is_three_whites(self):
+        self.assertEqual(self.M.KEYS_SCALE_FLASH_TIMES, 3)
+        self.settings(self.mod.SCALE_NEXT)
+        self.surface.hold = True
+        self.settings(self.mod.SCALE_PREV)
+        self.assertEqual(self.flicker(self.mod.SCALE_PREV).count(self.M.KEYS_SCALE_FLASH), 3)
+
+    def test_other_scales_do_not_flicker(self):
+        self.surface.hold = True
+        for _ in range(len(self.mod.SCALES) - 1):   # Minor ... Minor Blues
+            self.settings(self.mod.SCALE_NEXT)
+            self.assertEqual(self.scale_led(self.mod.SCALE_NEXT), self.M.KEYS_SETTINGS_SCALE)
+            self.assertEqual(self.flicker_ticks(), [])
+
+    def test_the_flicker_is_a_colour_the_scale_pads_never_show(self):
+        self.assertNotEqual(self.M.KEYS_SCALE_FLASH, self.M.KEYS_SETTINGS_SCALE)
+        self.assertNotEqual(self.M.KEYS_SCALE_FLASH, 0)
+        self.assertGreater(self.M.KEYS_SCALE_FLASH_TICKS, 0)
+
+    def test_moving_off_major_mid_flicker_ends_it_and_old_ticks_are_ignored(self):
+        self.settings(self.mod.SCALE_NEXT)      # Minor
+        self.surface.hold = True
+        self.settings(self.mod.SCALE_PREV)      # Major: SCALE_PREV flickers
+        old_tick = self.flicker_ticks()[0]
+        self.settings(self.mod.SCALE_NEXT)      # Minor: the flicker is over
+        self.assertEqual(self.scale_led(self.mod.SCALE_PREV), self.M.KEYS_SETTINGS_SCALE)
+        self.settings(self.mod.SCALE_PREV)      # Major again: a new flicker
+        self.surface.pending.remove(old_tick)
+        sent = len(self.surface.sent)
+        old_tick[1](old_tick[2])                # the first flicker's tick, late
+        self.assertEqual(len(self.surface.sent), sent)
+        self.assertEqual(self.flicker(self.mod.SCALE_PREV), self.expected_flicker())
+
+    def test_a_flicker_after_disconnect_paints_nothing(self):
+        self.settings(self.mod.SCALE_NEXT)
+        self.surface.hold = True
+        self.settings(self.mod.SCALE_PREV)
+        self.keys.disconnect()
+        sent = len(self.surface.sent)
+        self.surface.run_pending()
+        self.assertEqual(len(self.surface.sent), sent)
+        self.assertEqual(self.flicker_ticks(), [])
+
+    def test_a_scale_live_does_not_know_still_plays(self):
+        for _ in range(3):  # Major -> Minor -> Dorian -> Mixolydian
+            self.settings(self.mod.SCALE_NEXT)
+        self.assertEqual(self.played()[:7], [60, 62, 64, 65, 65, 67, 69])
+        self.assertEqual(self.played()[6:8], [69, 70])
+        self.assertEqual(self.surface.logged, ['keys: set Live scale'])
+
+    def test_the_pads_follow_a_scale_changed_in_live(self):
+        self.song.scale_name = 'Dorian'
+        self.song.root_note = 9
+        self.assertEqual(self.played()[:4], [69, 71, 72, 74])
+
+    def test_octave_buttons_move_and_stop_at_the_ends(self):
+        self.settings(self.mod.OCTAVE_UP)
+        self.assertEqual(self.played()[0], 72)
+        for _ in range(20):
+            self.settings(self.mod.OCTAVE_UP)
+        self.assertEqual(self.led(self.M.SETTINGS_LEDS[self.mod.OCTAVE_UP]), 0)
+        # Pads past MIDI 127 are dark and untranslated.
+        self.assertEqual(self.led(self.M.KEYS_LEDS[15]), 0)
+        self.assertEqual(self.note_map[self.M.KEYS_NOTES[15]].identifier,
+                         self.M.KEYS_NOTES[15])
+
+    def test_octave_pads_light_in_the_octave_colour(self):
+        self.assertEqual(len(self.M.KEYS_OCTAVE_COLOURS),
+                         self.M.KEYS_OCTAVE_MAX - self.M.KEYS_OCTAVE_MIN + 1)
+        down = self.M.SETTINGS_LEDS[self.mod.OCTAVE_DOWN]
+        up = self.M.SETTINGS_LEDS[self.mod.OCTAVE_UP]
+        for _ in range(20):
+            self.settings(self.mod.OCTAVE_DOWN)
+        colours = self.M.KEYS_OCTAVE_COLOURS
+        lowest, highest = self.M.KEYS_OCTAVE_MIN, self.M.KEYS_OCTAVE_MAX
+        for octave in range(lowest, highest + 1):
+            # Each pad shows the octave it moves to; dark at its end.
+            step = octave - lowest
+            self.assertEqual(self.led(down), colours[step - 1] if octave > lowest else 0)
+            self.assertEqual(self.led(up), colours[step + 1] if octave < highest else 0)
+            self.settings(self.mod.OCTAVE_UP)
+        self.assertEqual(len(set(colours)), len(colours))
+        self.assertNotIn(self.M.KEYS_SETTINGS_SCALE, colours)
+        self.assertNotIn(0, colours)
+
+    def test_octave_pads_preview_their_octave_from_the_start(self):
+        colours = self.M.KEYS_OCTAVE_COLOURS
+        step = self.M.KEYS_OCTAVE - self.M.KEYS_OCTAVE_MIN
+        self.assertEqual(self.led(self.M.SETTINGS_LEDS[self.mod.OCTAVE_DOWN]), colours[step - 1])
+        self.assertEqual(self.led(self.M.SETTINGS_LEDS[self.mod.OCTAVE_UP]), colours[step + 1])
+
+    def test_no_scale_note_can_press_another_button_on_this_port(self):
+        # Live looks a translated note up in the script's own map. On channel
+        # 1, a scale note of 55 soloed track 3 (seen on hardware 2026-10-17).
+        seq_channels = {C.PAD_CHANNEL, C.BUTTON_CHANNEL}
+        for octave in range(self.M.KEYS_OCTAVE_MIN, self.M.KEYS_OCTAVE_MAX + 1):
+            self.keys._octave = octave
+            self.keys._translate()
+            for i, note in enumerate(self.M.KEYS_NOTES):
+                button = self.note_map[note]
+                if (button.identifier, button.channel) == (note, 0):
+                    continue    # off the MIDI range, untranslated
+                self.assertNotEqual(button.channel, self.M.BUTTONCHANNEL)
+                self.assertNotIn(button.channel, seq_channels)
+
+    def test_disconnect_removes_every_listener(self):
+        self.keys.disconnect()
+        self.assertEqual(self.song.listeners, {'root_note': [], 'scale_name': []})
+        for note in self.M.SETTINGS_NOTES:
+            self.assertEqual(self.note_map[note].listeners, [])
+
+    def test_the_preset_file_matches_the_script(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data = open(os.path.join(root, 'presets', 'preset3-keys.spc'), 'rb').read()
+        for first, notes, leds in ((32, self.M.KEYS_NOTES, self.M.KEYS_LEDS),
+                                   (48, self.M.SETTINGS_NOTES, self.M.SETTINGS_LEDS)):
+            for pad in range(16):
+                record = data[211 + (first + pad) * 26:][:26]
+                self.assertEqual((record[0], record[2], record[8]),
+                                 (0x04, notes[pad], leds[pad]))
+
+
+
+class PassThrough(unittest.TestCase):
+    """MVave_SMC_KNOBS passing plain MIDI to the track now that Track is off on
+    SMC-PAD-Master: drum pads, preset 3's knobs and note repeat."""
+
+    def setUp(self):
+        self.saved = list(KNOBS_MODULE.MVave_SMC_KNOBS._active_instances)
+        KNOBS_MODULE.MVave_SMC_KNOBS._active_instances[:] = []
+        ice = sys.modules['_Framework.InputControlElement'].InputControlElement
+        ice.created[:] = []
+        self.knobs = KNOBS_MODULE.MVave_SMC_KNOBS(FakeCInstance())
+        self.elements = list(ice.created)
+
+    def tearDown(self):
+        KNOBS_MODULE.MVave_SMC_KNOBS._active_instances[:] = self.saved
+
+    def find(self, msg_type, channel, identifier):
+        return [e for e in self.elements
+                if (e.msg_type, e.original) == (msg_type, (identifier, channel))]
+
+    def test_drum_pads_and_their_repeats_reach_the_track_unchanged_but_on_channel_2(self):
+        for channel in (9, 0):
+            for note in range(36, 52):
+                element, = self.find(0, channel, note)
+                self.assertEqual((element.identifier, element.channel), (note, 1))
+                self.assertTrue(element.suppress_script_forwarding)
+
+    def test_preset_3_knobs_are_the_scripts_not_the_tracks(self):
+        # They play the selected device now; passed through as well, a synth
+        # that answers CCs would move twice.
+        for cc in KNOBS_MODULE.PARAM_BY_CC:
+            self.assertEqual(self.find(1, 0, cc), [])
+        self.assertFalse(set(KNOBS_MODULE.PARAM_BY_CC)
+                         & (set(KNOBS_MODULE.MACRO_BY_CC) | set(KNOBS_MODULE.NAV_CCS)))
+
+    def test_repeats_go_nowhere_until_the_keyboard_says_what_to_play(self):
+        for note in range(85, 101):
+            element, = self.find(0, 9, note)
+            self.assertEqual((element.identifier, element.channel), (note, 9))
+            self.assertTrue(element.suppress_script_forwarding)
+
+    def test_the_keyboard_table_retargets_the_repeats(self):
+        targets = list(range(60, 76))
+        targets[15] = None
+        self.knobs.keys_changed(targets)
+        buttons = self.knobs._repeat_buttons
+        self.assertEqual((buttons[0].identifier, buttons[0].channel), (60, 1))
+        self.assertEqual((buttons[15].identifier, buttons[15].channel), (100, 9))
+
+    def test_a_key_change_on_the_controller_reaches_the_repeats(self):
+        mod = _load_keys_mode()
+        M = _load_launcher_map()
+        surface = FakeKeysSurface(FakeScaleSong())
+        note_map = [FakeKeyButton(n) for n in range(128)]
+        keys = mod.KeysMode(surface, note_map)
+        note_map[M.SETTINGS_NOTES[2]].press()   # D
+        self.assertEqual([b.identifier for b in self.knobs._repeat_buttons], keys.targets())
+        self.assertEqual(self.knobs._repeat_buttons[0].identifier, 62)
+
+    def test_the_tables_agree_with_the_pad_script_and_the_presets(self):
+        import importlib.util
+        M = _load_launcher_map()
+        self.assertEqual(KNOBS_MODULE.KEYS_REPEAT_NOTES, M.KEYS_NOTES)
+        self.assertEqual(KNOBS_MODULE.PASS_CHANNEL, M.KEYS_CHANNEL)
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        spec = importlib.util.spec_from_file_location(
+            'make_presets', os.path.join(root, 'tools', 'make_presets.py'))
+        presets = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(presets)
+        # Slots in panel reading order, top-left first: encoders 7 8 5 6 3 4 1 2.
+        reading_order = (7, 8, 5, 6, 3, 4, 1, 2)
+        ccs = ([presets.PARAM_CCS_BANK_1[e] for e in reading_order]
+               + [presets.PARAM_CCS_BANK_2[e] for e in reading_order])
+        self.assertEqual([KNOBS_MODULE.PARAM_BY_CC[cc] for cc in ccs], list(range(16)))
+        self.assertEqual(KNOBS_MODULE.DRUM_NOTES,
+                         tuple(presets.DRUM_BOTTOM_LEFT + i for i in range(16)))
+
+
+
+class FakeBanks(object):
+    """The slice of Live's IndexedDict the bank table is: bank name -> dict."""
+
+    def __init__(self, *banks):
+        self._banks = banks
+
+    def __len__(self):
+        return len(self._banks)
+
+    def value_by_index(self, index):
+        return {'Parameters': self._banks[index]}
+
+
+def named(name, minimum=0.0, maximum=127.0):
+    param = FakeParameter(minimum, maximum)
+    param.original_name = name
+    return param
+
+
+class DeviceBanks(KnobScript):
+    """Preset 3's knobs play the selected device in Live's own banks."""
+
+    def setUp(self):
+        KnobScript.setUp(self)
+        self.saved = (KNOBS_MODULE.BANK_DEFINITIONS, KNOBS_MODULE.BANK_PARAMETERS_KEY)
+        KNOBS_MODULE.BANK_PARAMETERS_KEY = 'Parameters'
+        KNOBS_MODULE.BANK_DEFINITIONS = {
+            'InstrumentVector': FakeBanks(
+                ('Filter 1 Freq', 'Filter 1 Res', 'Amp Attack', 'Amp Release'),
+                ('LFO 1 Rate', 'Missing Param'),
+                ('Never Reached',)),
+        }
+
+    def tearDown(self):
+        KNOBS_MODULE.BANK_DEFINITIONS, KNOBS_MODULE.BANK_PARAMETERS_KEY = self.saved
+        KnobScript.tearDown(self)
+
+    def _wavetable(self):
+        names = ['Device On', 'Amp Release', 'LFO 1 Rate', 'Filter 1 Res',
+                 'Filter 1 Freq', 'Amp Attack', 'Never Reached']
+        device = FakeDevice([named(n) for n in names], name='Wavetable')
+        device.class_name = 'InstrumentVector'
+        self.knobs._device.set_device(device)
+        return dict((p.original_name, p) for p in device.parameters)
+
+    def _cc(self, slot):
+        return KNOBS_MODULE.PARAM_CC_FIRST + slot
+
+    def test_bank_1_follows_live_s_table_by_name_not_position(self):
+        p = self._wavetable()
+        self._turn(self._cc(0), 65)
+        self._turn(self._cc(1), 65)
+        self._turn(self._cc(1), 65)
+        self.assertEqual((p['Filter 1 Freq'].value, p['Filter 1 Res'].value), (1.0, 2.0))
+        self.assertEqual(p['Amp Release'].value, 0.0)
+
+    def test_knob_bank_2_is_live_s_second_bank(self):
+        p = self._wavetable()
+        self._turn(self._cc(8), 65)
+        self.assertEqual(p['LFO 1 Rate'].value, 1.0)
+
+    def test_an_empty_or_unknown_slot_does_nothing_and_says_so_once(self):
+        p = self._wavetable()
+        for slot in (4, 9, 15):             # short bank, unknown name, no bank
+            self._turn(self._cc(slot), 65)
+            self._turn(self._cc(slot), 65)
+        self.assertTrue(all(param.value == 0.0 for param in p.values()))
+        said = [l for l in self.knobs._c_instance.log if 'knob slot' in l]
+        self.assertEqual(len(said), 3)
+
+    def test_a_device_live_has_no_bank_for_plays_parameters_in_order(self):
+        # A plugin: whatever its Configure button put in the list, in order.
+        params = [named('p%d' % i) for i in range(20)]
+        device = FakeDevice(params, name='Some VST')
+        device.class_name = 'PluginDevice'
+        self.knobs._device.set_device(device)
+        self._turn(self._cc(0), 65)
+        self._turn(self._cc(15), 65)
+        self.assertEqual([p.value for p in params[:18]],
+                         [0.0, 1.0] + [0.0] * 14 + [1.0, 0.0])
+
+    def test_switching_devices_rebinds_the_knobs(self):
+        self._wavetable()
+        self._turn(self._cc(0), 65)
+        params = [named('Device On'), named('Macro 1')]
+        rack = FakeDevice(params, name='Rack')
+        rack.class_name = 'InstrumentGroupDevice'
+        self.knobs._device.set_device(rack)
+        self._turn(self._cc(0), 65)
+        self.assertEqual(params[1].value, 1.0)
+
+    def test_without_live_s_table_everything_plays_in_order(self):
+        KNOBS_MODULE.BANK_DEFINITIONS = {}
+        names = ['Device On', 'Amp Release', 'LFO 1 Rate']
+        device = FakeDevice([named(n) for n in names], name='Wavetable')
+        device.class_name = 'InstrumentVector'
+        self.knobs._device.set_device(device)
+        self._turn(self._cc(0), 65)
+        self.assertEqual(device.parameters[1].value, 1.0)
+
+
+class PinnedClip(SeqTest):
+    """Away from preset 2 the sequencer keeps its clip (MVave_SMC_KNOBS says
+    which preset is up), so playing preset 3 on another track loses nothing."""
+
+    def test_selection_moves_are_ignored_while_away(self):
+        self.seq.set_on_screen(False)
+        self.song.view.select(FakeClip(loop_start=0.0, loop_end=4.0))
+        self.assertIs(self.seq._clip, self.clip)
+
+    def test_back_on_preset_2_it_keeps_the_clip_then_follows_again(self):
+        self.seq.set_on_screen(False)
+        other = FakeClip(loop_start=0.0, loop_end=4.0)
+        self.song.view.select(other)
+        self.seq.set_on_screen(True)
+        self.assertIs(self.seq._clip, self.clip)
+        self.song.view.select(other)
+        self.assertIs(self.seq._clip, other)
+
+    def test_a_clip_deleted_while_away_is_replaced_by_the_selection(self):
+        self.seq.set_on_screen(False)
+        other = FakeClip(loop_start=0.0, loop_end=4.0)
+        self.song.view.select(other)
+        self.clip.dead = True
+        self.seq.set_on_screen(True)
+        self.assertIs(self.seq._clip, other)
+
+    def test_a_clip_deleted_while_away_does_not_wedge_the_selection(self):
+        self.seq.set_on_screen(False)
+        self.clip.dead = True
+        other = FakeClip(loop_start=0.0, loop_end=4.0)
+        self.song.view.select(other)
+        self.assertIs(self.seq._clip, other)
+
+
+class PresetTellsTheSequencer(unittest.TestCase):
+
+    class Seq(object):
+        def __init__(self):
+            self.calls = []
+
+        def set_on_screen(self, value):
+            self.calls.append(value)
+
+        def refresh_state(self):
+            pass
+
+        def schedule_message(self, delay, callback):
+            pass
+
+    def test_only_preset_2_counts_as_on_screen(self):
+        knobs = KNOBS_MODULE.MVave_SMC_KNOBS(FakeCInstance())
+        seq = self.Seq()
+        knobs._instances = lambda name: [seq] if name == 'MVave_SMC_STEPSEQ' else []
+        P = PresetSwitchRepaint
+        for status in (P.LAUNCHER, P.SEQUENCER, P.DRUMS, P.MIXER):
+            knobs.receive_midi(status)
+        self.assertEqual(seq.calls, [False, True, True, False])
+
+
+
+class Feedback(SeqTest):
+    """Beat markers and the status-bar messages."""
+
+    def setUp(self):
+        # Shipped off since 2026-10-20; tested lit so the gating still shows.
+        # Both: the script copied the constant in with `import *`, and the
+        # assertions below read it from C.
+        self.addCleanup(setattr, C, 'COLOR_STEP_DOWNBEAT', C.COLOR_STEP_DOWNBEAT)
+        self.addCleanup(setattr, SEQ_MODULE, 'COLOR_STEP_DOWNBEAT',
+                        SEQ_MODULE.COLOR_STEP_DOWNBEAT)
+        C.COLOR_STEP_DOWNBEAT = SEQ_MODULE.COLOR_STEP_DOWNBEAT = 21
+        SeqTest.setUp(self)
+
+    def test_beat_markers_light_empty_beats_in_focus(self):
+        self.seq.refresh_state()
+        leds = self.leds()
+        for index in (0, 4, 8, 12):
+            self.assertEqual(leds[index], C.COLOR_STEP_DOWNBEAT)
+        for index in (1, 2, 3, 5, 15):
+            self.assertEqual(leds[index], C.COLOR_STEP_EMPTY)
+
+    def test_a_note_on_a_beat_beats_the_marker(self):
+        self.press(4)
+        self.assertEqual(self.leds()[4], C.COLOR_STEP_ON)
+        self.press(4)
+        self.assertEqual(self.leds()[4], C.COLOR_STEP_DOWNBEAT)
+
+    def test_no_beat_markers_past_the_loop_end(self):
+        self.clip.set_loop_end(self.clip.loop_start + 6 * C.STEP)
+        self.assertEqual(self.seq._led[4], C.COLOR_STEP_DOWNBEAT)
+        self.assertEqual(self.seq._led[8], C.COLOR_STEP_OFF)
+
+    def test_no_beat_markers_in_the_overview(self):
+        # Its left column is always a beat, and blue is a lane colour there.
+        self.button(C.BTN_VIEW)
+        self.assertEqual(self.leds()[0], C.COLOR_STEP_EMPTY)
+        self.assertEqual(self.leds()[12], C.COLOR_STEP_EMPTY)
+
+    def test_a_pad_edit_names_the_step(self):
+        self.press(4)
+        self.assertEqual(self.seq.messages[-1], 'C1 step 5/16 on')
+        self.press(4)
+        self.assertEqual(self.seq.messages[-1], 'C1 step 5/16 off')
+
+    def test_a_pad_edit_names_the_drum(self):
+        pads = {36: FakeDrumPad(36, [FakeDevice([], 'Drum')])}
+        pads[36].name = 'Kick'
+        self.song.view.selected_track = FakeTrack([FakeDrumRack(pads)])
+        self.press(0)
+        self.assertEqual(self.seq.messages[-1], 'Kick (C1) step 1/16 on')
+
+    def test_paging_names_the_steps(self):
+        self.clip.set_loop_end(self.clip.loop_start + 64 * C.STEP)
+        self.button(C.BTN_RIGHT)
+        self.assertIn('Steps 17-32 of 64', self.seq.messages[-1])
+        self.assertIn('page 2/4', self.seq.messages[-1])
+
+    def test_following_the_playhead_names_the_steps(self):
+        self.clip.set_loop_end(self.clip.loop_start + 32 * C.STEP)
+        self.clip.play(17 * C.STEP)
+        self.assertEqual(self.seq._bank, 1)
+        self.assertIn('Steps 17-32 of 32', self.seq.messages[-1])
+
+    def test_switching_view_names_the_overview(self):
+        self.button(C.BTN_VIEW)
+        self.assertIn('Overview', self.seq.messages[-1])
+        self.assertIn('steps 1-4 of 16', self.seq.messages[-1])
+
+    def test_messages_can_be_switched_off(self):
+        seqmod = SEQ_MODULE
+        originals = seqmod.SHOW_PAGE_MESSAGES, seqmod.SHOW_STEP_MESSAGES
+        try:
+            seqmod.SHOW_PAGE_MESSAGES = seqmod.SHOW_STEP_MESSAGES = False
+            self.seq.messages = []
+            self.press(0)
+            self.button(C.BTN_VIEW)
+            self.assertEqual(self.seq.messages, [])
+        finally:
+            seqmod.SHOW_PAGE_MESSAGES, seqmod.SHOW_STEP_MESSAGES = originals
+
+
+class DrumColours(SeqTest):
+    """Each drum's steps light in its kind's colour."""
+
+    DRUM_COLORS = True
+
+    def colour(self, kind):
+        return dict((k, c) for k, c, _, _ in C.DRUM_KINDS)[kind]
+
+    def named_kit(self, names):
+        pads = {}
+        for pitch, name in names.items():
+            pads[pitch] = FakeDrumPad(pitch, [FakeDevice([], 'Drum')])
+            pads[pitch].name = name
+        self.song.view.selected_track = FakeTrack([FakeDrumRack(pads)])
+
+    def test_names_decide_the_kind(self):
+        drum_color = SEQ_MODULE.drum_color
+        self.assertEqual(drum_color(60, 'Kick 808'), self.colour('kick'))
+        self.assertEqual(drum_color(60, 'BD 909'), self.colour('kick'))
+        self.assertEqual(drum_color(60, 'Clap Wide'), self.colour('snare'))
+        self.assertEqual(drum_color(60, 'Closed HiHat'), self.colour('hat'))
+        self.assertEqual(drum_color(60, 'HH open'), self.colour('hat'))
+        self.assertEqual(drum_color(60, 'Crash 2'), self.colour('cymbal'))
+        self.assertEqual(drum_color(60, 'Low Tom'), self.colour('tom'))
+        self.assertEqual(drum_color(60, 'Kick Snare Layer'), self.colour('kick'))
+
+    def test_short_words_match_only_whole(self):
+        # 'sd' must not make "Bassdrive" a snare, nor 'hh' anything with hh in it.
+        self.assertEqual(SEQ_MODULE.drum_color(60, 'Bassdrive'), C.COLOR_DRUM_OTHER)
+
+    def test_a_name_beats_the_general_midi_map(self):
+        self.assertEqual(SEQ_MODULE.drum_color(36, 'Bongo'), C.COLOR_DRUM_OTHER)
+
+    def test_no_name_falls_back_to_general_midi(self):
+        drum_color = SEQ_MODULE.drum_color
+        self.assertEqual(drum_color(36), self.colour('kick'))
+        self.assertEqual(drum_color(42), self.colour('hat'))
+        self.assertEqual(drum_color(49), self.colour('cymbal'))
+        self.assertEqual(drum_color(60), C.COLOR_DRUM_OTHER)
+
+    def test_kind_colours_avoid_the_playhead(self):
+        for kind, colour, words, pitches in C.DRUM_KINDS:
+            self.assertNotIn(colour, (C.COLOR_PLAYHEAD, C.COLOR_PLAYHEAD_ON), kind)
+            self.assertTrue(0 < colour <= 127, kind)
+
+    def test_focus_notes_light_in_the_drums_colour(self):
+        self.named_kit({36: 'Crash 1'})
+        self.press(1)
+        self.assertEqual(self.leds()[1], self.colour('cymbal'))
+
+    def test_focus_without_a_rack_uses_general_midi(self):
+        self.press(1)                                   # lane 36: a kick
+        self.assertEqual(self.leds()[1], self.colour('kick'))
+
+    def test_the_playhead_still_whitens_a_coloured_step(self):
+        self.press(1)
+        self.clip.play(1 * C.STEP)
+        self.assertEqual(self.leds()[1], C.COLOR_PLAYHEAD_ON)
+
+    def test_the_picker_shows_every_drum_in_its_colour(self):
+        self.named_kit({36: 'Kick', 38: 'Snare', 39: 'Clap', 40: 'Zap'})
+        self.clip.notes.append(FakeNote(39, 0.0, C.STEP, 100))
+        self.clip.notes.append(FakeNote(41, 0.0, C.STEP, 100))   # no sound
+        self.clip._fire('notes')
+        self.button(C.BTN_MOD, True)
+        leds = self.leds()
+        kinds = dict((k, c) for k, c, _, _ in C.DRUM_KINDS)
+        self.assertEqual(leds[12], C.COLOR_PICK_SELECTED)   # 36, the lane
+        self.assertEqual(leds[14], kinds['snare'])          # 38: no notes
+        self.assertEqual(leds[15], kinds['snare'])          # 39: notes, same
+        self.assertEqual(leds[8], C.COLOR_DRUM_OTHER)       # 40 'Zap'
+        self.assertEqual(leds[9], kinds['tom'])             # 41: notes, GM
+        self.assertNotEqual(leds[13], C.COLOR_PICK_LOADED)  # 37: no sound
+
+    def test_holding_mod_flashes_each_drum_as_it_plays(self):
+        self.named_kit({36: 'Kick', 38: 'Snare'})
+        self.clip.notes.append(FakeNote(36, 0.0, C.STEP, 100))
+        self.clip.notes.append(FakeNote(38, 4 * C.STEP, C.STEP, 100))
+        self.clip._fire('notes')
+        kinds = dict((k, c) for k, c, _, _ in C.DRUM_KINDS)
+        self.button(C.BTN_MOD, True)
+        self.clip.play(0.0)                     # step 1: the kick
+        self.assertEqual(self.leds()[12], kinds['kick'])    # the white lane
+        self.assertEqual(self.leds()[14], kinds['snare'])
+        self.clip.play(4 * C.STEP)              # step 5: the snare
+        self.assertEqual(self.leds()[12], C.COLOR_PICK_SELECTED)
+        self.assertEqual(self.leds()[14], C.COLOR_PLAYHEAD_ON)
+        self.clip.play(5 * C.STEP)              # step 6: nothing
+        self.assertEqual(self.leds()[14], kinds['snare'])
+
+    def test_the_flash_can_be_switched_off(self):
+        original = SEQ_MODULE.PICKER_FLASH
+        try:
+            SEQ_MODULE.PICKER_FLASH = False
+            self.clip.notes.append(FakeNote(36, 0.0, C.STEP, 100))
+            self.clip._fire('notes')
+            self.button(C.BTN_MOD, True)
+            self.clip.play(0.0)
+            self.assertEqual(self.leds()[12], C.COLOR_PICK_SELECTED)
+        finally:
+            SEQ_MODULE.PICKER_FLASH = original
+
+    def test_overview_rows_light_in_their_drums_colours(self):
+        # Bottom row is 36 (kick), then 37, 38 (snare), 39 (clap -> snare).
+        self.clip.notes.append(FakeNote(36, 0.0, C.STEP, 100))
+        self.clip.notes.append(FakeNote(38, 0.0, C.STEP, 100))
+        self.clip._fire('notes')
+        self.button(C.BTN_VIEW)
+        self.assertEqual(self.leds()[12], self.colour('kick'))
+        self.assertEqual(self.leds()[4], self.colour('snare'))
+
+
+
+class FakeIntroSurface(FakeKeysSurface):
+    def __init__(self):
+        FakeKeysSurface.__init__(self, None)
+        self.hold, self.refreshed = True, 0
+
+    def refresh_state(self):
+        self.refreshed += 1
+
+    def run_ticks(self, ticks):
+        for _ in range(ticks):
+            self.run_pending()
+
+
+class StartupIntro(unittest.TestCase):
+    """MVave_SMC_PAD/StartupIntro.py: the rainbow and the PAD1 flash at load."""
+
+    def setUp(self):
+        _load_keys_mode()
+        import importlib
+        self.mod = importlib.import_module('pad_keys_pkg.StartupIntro')
+        self.surface = FakeIntroSurface()
+        self.intro = self.mod.StartupIntro(self.surface)
+        self.pads = self.mod.grid_leds()
+        # PAD1, bottom-left, sends note 13: the grid's first row is the top.
+        self.pad1 = self.mod.PAD_LED_OFFSET + 13
+
+    def lit(self):
+        leds = {}
+        for status, led, colour in self.surface.sent:
+            leds[led] = colour
+        return leds
+
+    def test_the_grid_is_the_clip_grids_leds(self):
+        self.assertEqual(sorted(led for led, _ in self.pads), list(range(33, 49)))
+        self.assertEqual(dict(self.pads)[self.pad1], 0)         # PAD1 first
+        self.assertEqual(dict(self.pads)[36], 6)                # top-right (note 4) last
+        self.assertEqual(dict(self.pads)[33], 3)                # PAD13 (note 1) top-left
+
+    def test_pad1_is_the_bottom_left_pad_in_preset_1(self):
+        # Record 32 is PAD1, bank A (tools/make_presets.py BANK_A).
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data = open(os.path.join(root, 'presets',
+                                 'preset1-launcher-mixer.spc'), 'rb').read()
+        record = 211 + 32 * 26
+        self.assertEqual(data[record + 8], self.pad1)           # its LED number
+
+    def test_the_rainbow_starts_at_pad1_and_spreads_diagonally(self):
+        first = self.mod.frame(0, self.pads)
+        self.assertEqual(first[self.pad1], self.mod.INTRO_RAINBOW[0])
+        self.assertEqual([led for led, c in first.items() if c], [self.pad1])
+        later = self.mod.frame(6, self.pads)
+        self.assertTrue(all(later.values()))                    # all 16 lit
+        # Pads on one diagonal share a colour; the next one is a step behind.
+        pad2, pad5, pad6 = 46, 41, 42                           # notes 14, 9, 10
+        self.assertEqual(later[pad2], later[pad5])
+        rainbow = list(self.mod.INTRO_RAINBOW)
+        self.assertEqual((rainbow.index(later[pad2]) - rainbow.index(later[pad6])) % len(rainbow), 1)
+
+    def test_pad1_steps_through_every_colour_in_order(self):
+        rainbow = self.mod.INTRO_RAINBOW
+        seen = [self.mod.frame(step, self.pads)[self.pad1]
+                for step in range(self.mod.INTRO_RAINBOW_TICKS)]
+        ticks = self.mod.INTRO_COLOUR_TICKS
+        self.assertEqual(seen, [rainbow[(s // ticks) % len(rainbow)] for s in range(len(seen))])
+        self.assertEqual(set(seen), set(rainbow))               # none skipped
+
+    def test_the_rainbow_has_no_repeats(self):
+        self.assertEqual(len(set(self.mod.INTRO_RAINBOW)), len(self.mod.INTRO_RAINBOW))
+
+    def test_every_rainbow_colour_is_in_the_palette(self):
+        for colour in self.mod.INTRO_RAINBOW:
+            self.assertTrue(0 < colour < 64)
+
+    def test_it_lasts_about_three_plus_two_seconds(self):
+        self.assertEqual(self.mod.INTRO_RAINBOW_TICKS, 30)
+        self.assertEqual(self.mod.INTRO_FLASH_TICKS, 20)
+
+    def test_then_only_pad1_flashes(self):
+        start = self.mod.INTRO_RAINBOW_TICKS
+        on, off = self.mod.frame(start, self.pads), self.mod.frame(
+            start + self.mod.INTRO_FLASH_STEP, self.pads)
+        self.assertEqual({l: c for l, c in on.items() if c},
+                         {self.pad1: self.mod.INTRO_FLASH_COLOUR})
+        self.assertFalse(any(off.values()))
+
+    def test_play_runs_to_the_end_then_hands_the_grid_back(self):
+        self.intro.play()
+        self.assertTrue(self.intro.playing)
+        self.assertEqual(self.lit()[self.pad1], self.mod.INTRO_RAINBOW[0])
+        self.surface.run_ticks(self.mod.INTRO_RAINBOW_TICKS + self.mod.INTRO_FLASH_TICKS - 1)
+        self.assertTrue(self.intro.playing)
+        self.assertEqual(self.surface.refreshed, 0)
+        self.surface.run_ticks(1)
+        self.assertFalse(self.intro.playing)
+        self.assertEqual(self.surface.refreshed, 1)
+        self.assertEqual(self.surface.pending, [])
+
+    def test_only_changes_are_sent_between_ticks(self):
+        self.intro.play()
+        self.surface.run_ticks(self.mod.INTRO_RAINBOW_TICKS)  # first flash tick
+        del self.surface.sent[:]
+        self.surface.run_ticks(1)                               # PAD1 still on
+        self.assertEqual(self.surface.sent, [])
+
+    def test_it_plays_once(self):
+        self.intro.play()
+        self.surface.run_ticks(60)
+        del self.surface.sent[:]
+        self.intro.play()                                       # the fallback
+        self.assertEqual(self.surface.sent, [])
+
+    def test_another_layout_skips_it_and_the_fallback_too(self):
+        self.intro.play(False)
+        self.intro.play()
+        self.assertEqual(self.surface.sent, [])
+        self.assertFalse(self.intro.playing)
+
+    def test_repaint_puts_the_frame_back_over_a_refresh(self):
+        self.intro.play()
+        self.surface.run_ticks(10)
+        del self.surface.sent[:]
+        self.intro.repaint()
+        self.assertEqual(len(self.surface.sent), 16)
+
+    def test_disconnect_stops_a_tick_still_scheduled(self):
+        self.intro.play()
+        self.intro.disconnect()
+        del self.surface.sent[:]
+        self.surface.run_ticks(60)
+        self.assertEqual(self.surface.sent, [])
+        self.assertEqual(self.surface.refreshed, 0)
+
+    def test_disabled_never_plays(self):
+        saved = self.mod.INTRO_ENABLED
+        self.mod.INTRO_ENABLED = False
+        try:
+            intro = self.mod.StartupIntro(self.surface)
+            intro.play()
+            self.assertEqual(self.surface.sent, [])
+        finally:
+            self.mod.INTRO_ENABLED = saved
+
+
+class KnobsStartTheIntro(unittest.TestCase):
+    """The first status tells MVave_SMC_PAD whether the grid is showing."""
+
+    S = PresetSwitchRepaint
+
+    class Pad(object):
+        def __init__(self):
+            self.scheduled = []
+
+        def play_intro(self, show=True):
+            pass
+
+        def refresh_state(self):
+            pass
+
+        def schedule_message(self, delay, callback, parameter=None):
+            self.scheduled.append((callback, parameter))
+
+    def setUp(self):
+        self.knobs = KNOBS_MODULE.MVave_SMC_KNOBS(FakeCInstance())
+        self.pad = self.Pad()
+        self.knobs._instances = lambda name: [self.pad] if name == 'MVave_SMC_PAD' else []
+        self.knobs._startup_pending = False
+
+    def intros(self):
+        return [p for c, p in self.pad.scheduled if c == self.pad.play_intro]
+
+    def test_preset_1_bank_a_plays_it(self):
+        self.knobs.receive_midi(self.S.LAUNCHER)
+        self.assertEqual(self.intros(), [True])
+
+    def test_another_layout_skips_it(self):
+        for status in (self.S.MIXER, self.S.SEQUENCER, self.S.KEYS):
+            self.setUp()
+            self.knobs.receive_midi(status)
+            self.assertEqual(self.intros(), [False])
+
+    def test_only_the_first_status_counts(self):
+        self.knobs.receive_midi(self.S.SEQUENCER)
+        self.knobs.receive_midi(self.S.LAUNCHER)
+        self.assertEqual(self.intros(), [False])
+
+    def test_not_before_the_startup_write_has_landed(self):
+        self.knobs._startup_pending = True
+        self.knobs.sent = []
+        self.knobs.receive_midi(self.S.KEYS)                    # writes preset 1
+        self.assertEqual(self.intros(), [])
+        self.knobs.receive_midi(self.S.LAUNCHER)
+        self.assertEqual(self.intros(), [True])
 
 
 if __name__ == '__main__':

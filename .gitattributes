@@ -1,6 +1,8 @@
 # Line endings are stored exactly as they are.
 #
-# MVave_SMC_PAD/ descends from a template that came off a Windows machine and is
-# CRLF throughout; everything else is LF. Python 3 reads both without complaint,
-# and letting git normalise would produce a whole-file diff for no benefit.
+# MVave_SMC_PAD/ descends from a template that came off a Windows machine: its
+# __init__.py and the Special*Component.py files (except SpecialSessionComponent.py)
+# are CRLF, as is tools/run_probe.bat; everything else is LF. Python 3 reads both
+# without complaint, and letting git normalise would produce whole-file diffs for
+# no benefit.
 * -text

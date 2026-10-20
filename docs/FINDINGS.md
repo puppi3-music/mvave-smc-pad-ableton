@@ -34,7 +34,7 @@ that summed to exactly the file length with nothing left over.
 An exact fit across three different record sizes is not a coincidence you get by
 chance. That single check converted a guess into a segmentation confident enough
 to build on — and the 128-record section immediately made sense as 8 preset banks
-of 16 pads.
+of 16 pads. (That last reading turned out to be wrong; see wrong turn 8.)
 
 **Generalisable:** when reverse-engineering a fixed-record binary format, solve
 for record counts and sizes that account for the file exactly. It is a far
@@ -54,7 +54,7 @@ and a build was nearly started. The actual test took about ten minutes.
 that one first. Not the easiest thing to test, not the thing you are most curious
 about — the load-bearing one.
 
-## Seven wrong turns
+## Eight wrong turns
 
 **1. Assuming MCU numbering because the port is called "DAW".** The device
 presents three MIDI ports and the manufacturer's setup guide says to point Mackie
@@ -109,6 +109,23 @@ macro mappings that had been arriving on the claimed port. **It does not:**
 assigning a Control Surface disables Track/Sync/Remote on that port. Documented
 now as fact rather than as an open question.
 
+**8. Eight banks in the file, so eight PAD BANK positions.** The pad section
+holds 128 records, and 8 × 16 was such a natural reading that every document
+assumed PAD BANK stepped through eight banks. It has two (measured
+2026-10-07): records 32–47 and 48–63. The same session first measured the
+first position at records 29–44, and presets were built that way. Once
+imported, every pad played the clip three pads along and the last three pads
+stuck white. Re-measured on 2026-10-08, the first position sat at 32–47, the
+same place M-Vave's own export keeps it. *A structure that explains the file
+does not tell you what the firmware does with it; and a measurement that
+disagrees with the vendor's own export deserves a second look before you build
+on it.*
+
+A smaller one from the same week: the pad record's byte 8 mirrored the note on
+every lit record, so it was written off as a checksum-like tail. It is the
+LED number, and leaving it equal to the note is what made pads impossible to
+switch off.
+
 ## Failures that are silent by construction
 
 Three things in this project fail without any error, which is why they get their
@@ -132,21 +149,21 @@ extra code to make it announce itself.
 
 Recorded rather than quietly dropped:
 
-- **The `.spc` flag byte as a port selector.** Pad records in the hand-edited
-  bank carry flag `0x04` and appear on port 3; encoder records carry flag `0x03`
-  and appear on ports 1 and 2. (An earlier revision of this bullet said the
-  encoder flag was `0x00` — that is the *third* byte of the record, a different
-  field. All 32 encoder records across both shipped presets read
-  `03 02 00 <cc> 3f 41`.) Two observations, consistent, never proven — and
-  **superseded** by [HARDWARE.md](HARDWARE.md) 5.6, which argues the port
-  follows the assignment *type* rather than any flag, and where the confirming
-  experiment is still unrun.
-- **What VELOCITY 1–4 change.** All four transmit velocity 127 on the DAW port
-  and none affect LED colour. What they *do* affect was never established,
-  because the port a velocity curve would shape transmitted nothing in the bank
-  under test.
-- **Why port 1 was silent for pads** while carrying encoder CCs perfectly. Likely
-  the same flag byte above.
+- **Whether the assignment type is what picks the port.** This started as
+  "the `.spc` flag byte selects the port": pad records in the hand-edited bank
+  carry flag `0x04` and appear on port 3. The encoder records' first byte,
+  `0x03`, was once counted as a flag too, but MidiSuite's code shows it is the
+  encoder *type* (3 = relative CC; HARDWARE.md 5.2). The current explanation,
+  in [HARDWARE.md](HARDWARE.md) 5.6, is that the port follows the assignment
+  type, MCP or plain MIDI. The confirming experiment is designed and still
+  unrun.
+- **What VELOCITY 1–3 do to the velocity-sensitive pads.** All four settings
+  transmit 127 on the DAW port and none affect LED colour. VELOCITY 4 sends a
+  fixed 127 on the plain-MIDI drum pads too. The setting itself turned out to
+  be readable by the host, which is how the sequencer uses it (HARDWARE.md 6.2).
+- **Why port 1 was silent for pads** in the first measurements, while carrying
+  encoder CCs perfectly. Explained by the type model above, if it holds: those
+  pads were MCP-typed, and plain-MIDI pads do appear on port 1.
 - **Whether the cross-script instance lookup is robust across load orders.** It
   works, and it is resolved lazily on every use specifically because Control
   Surface slot initialisation order is not controllable — but only one ordering
