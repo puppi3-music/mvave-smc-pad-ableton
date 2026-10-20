@@ -10,6 +10,9 @@ preset on the controller:
 
 On every preset the encoders control the selected device.
 
+Don't have one yet? The SMC-PAD is available on
+[AliExpress](https://www.aliexpress.com/item/1005012967834750.html).
+
 Also here: a **complete measured MIDI reference** for the SMC-PAD, and the tool
 used to measure it. The manufacturer publishes no MIDI implementation (both its
 manuals are marketing copy), so as far as we know that reference exists nowhere
