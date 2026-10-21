@@ -272,7 +272,7 @@ port 2.
 
 The quickest check is the controller itself. When Live opens, it should switch
 to preset 1 and play a waving trans flag (or a rainbow, see `INTRO_STYLE`)
-across the pads for about three seconds, then
+across the pads for about five seconds, then
 flash pad 1 (bottom-left) white. That shows `MVave_SMC_PAD` and
 `MVave_SMC_KNOBS` are both loaded with their outputs set. Then pads under the
 coloured session box should light orange where a clip sits and green when one

@@ -4336,8 +4336,8 @@ class StartupIntro(unittest.TestCase):
         for colour in self.mod.INTRO_RAINBOW:
             self.assertTrue(0 < colour < 64)
 
-    def test_it_lasts_about_three_plus_two_seconds(self):
-        self.assertEqual(self.mod.INTRO_SHOW_TICKS, 30)
+    def test_it_lasts_about_five_plus_two_seconds(self):
+        self.assertEqual(self.mod.INTRO_SHOW_TICKS, 50)
         self.assertEqual(self.mod.INTRO_FLASH_TICKS, 20)
 
     def test_then_only_pad1_flashes(self):

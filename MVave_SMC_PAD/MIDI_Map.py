@@ -1,7 +1,7 @@
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-10-20b'
+SCRIPT_REVISION = '2026-10-21'
 
 # Avoid using tabs for indentation, use spaces.
 # Don't use floats, they might break things.
@@ -156,13 +156,13 @@ PAD_LED_OFFSET = 32
 
 # Startup intro
 # -------------
-# When Live loads, the grid plays a show for ~3 s -- a waving trans flag, or a
+# When Live loads, the grid plays a show for ~5 s -- a waving trans flag, or a
 # rainbow -- then PAD1 flashes for ~2 s to say preset 1 is loaded (Shift + PAD1
 # is preset 1), then the clip colours come back. Ticks are Live's display
 # ticks, about 100 ms each. StartupIntro.py has the details.
 INTRO_ENABLED = True        # False skips it
 INTRO_STYLE = 'flag'        # 'flag' or 'rainbow'
-INTRO_SHOW_TICKS = 30       # ~3 s of flag or rainbow, before the flash
+INTRO_SHOW_TICKS = 50       # ~5 s of flag or rainbow, before the flash; 7 s in all
 #
 # The flag unfurls from the left column, a column a tick, then waves: a ripple
 # runs left to right across the grid every INTRO_WAVE_TICKS, so the stripes
@@ -189,7 +189,7 @@ INTRO_WAVE_TICKS = 10       # one ripple a second
 INTRO_RAINBOW = (14, 15, 59, 46, 4, 19, 5, 6, 20, 62, 21, 63, 9, 24, 11, 26, 12, 56)
 # How many ticks each rainbow colour lasts on a pad; each diagonal is one
 # colour behind the last. 1, the fastest that shows every colour, takes each pad round the
-# 18 colours about 1.7 times in ~3 s. 2 is half the speed.
+# 18 colours about 2.8 times in ~5 s. 2 is half the speed.
 INTRO_COLOUR_TICKS = 1
 INTRO_FLASH_TICKS = 20      # ~2 s
 INTRO_FLASH_COLOUR = 40     # white
