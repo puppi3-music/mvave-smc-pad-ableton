@@ -1137,6 +1137,26 @@ class Navigation(SeqTest):
         self.assertEqual(self.leds()[13], C.COLOR_PICK_LOADED)
         self.button(C.BTN_MOD, False)
 
+    def test_the_picker_finds_a_kit_inside_another_rack(self):
+        rack = FakeDrumRack({37: FakeDrumPad(37, [FakeDevice([], 'Snare')])})
+        outer = type('Rack', (), {'can_have_chains': True, 'name': 'Rack',
+                                  'chains': [FakeChain([rack])]})()
+        self.song.view.selected_track = FakeTrack([outer])
+        self.button(C.BTN_MOD, True)
+        self.assertEqual(self.leds()[13], C.COLOR_PICK_LOADED)
+        self.button(C.BTN_MOD, False)
+
+    def test_the_picker_reads_the_clips_track_not_the_selected_one(self):
+        # The clip plays on in the background while another track is selected.
+        rack = FakeDrumRack({37: FakeDrumPad(37, [FakeDevice([], 'Snare')])})
+        kit = FakeTrack([rack])
+        self.clip.canonical_parent = type('Slot', (), {
+            'has_clip': True, 'canonical_parent': kit})()
+        self.song.view.selected_track = FakeTrack([])
+        self.button(C.BTN_MOD, True)
+        self.assertEqual(self.leds()[13], C.COLOR_PICK_LOADED)
+        self.button(C.BTN_MOD, False)
+
     def test_the_picker_hides_the_playhead(self):
         self.clip.play(12 * C.STEP)
         self.button(C.BTN_MOD, True)

@@ -176,6 +176,8 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         # moves, so playing preset 3 on another track and coming back finds
         # the pattern still on the pads.
         self._pinned = False
+        self._bound_label = None                # what the log last said is bound
+        self._rack_label = None                 # and which Drum Rack it found
         self._view = VIEW_FOCUS
         self._lane = DEFAULT_LANE
         self._bank = 0
@@ -388,7 +390,13 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         (True) or away from it (False). Away, the clip is pinned; back, the
         sequencer follows the selection again from the next change. A clip
         deleted while away is replaced by whatever is selected."""
-        self._pinned = not on_screen
+        pinned = not on_screen
+        if pinned != self._pinned:
+            # Logged on a change only, with the clip it keeps, so Log.txt
+            # shows why a click in Live did or did not move the sequencer.
+            self._log('preset 2 %s' % ('away, holding %s' % _clip_label(self._clip)
+                                       if pinned else 'up, following the selection'))
+        self._pinned = pinned
         if on_screen and not self._clip_alive():
             self._rebind()
 
@@ -458,6 +466,10 @@ class MVave_SMC_STEPSEQ(ControlSurface):
             clip.add_playing_status_listener(self._on_play_status)
             self._attach_loop_listeners(clip)
         self._clip = clip
+        label = _clip_label(clip)
+        if label != self._bound_label:
+            self._bound_label = label
+            self._log('clip -> %s' % label)
         self._clamp_pages()
         self._render()
 
@@ -642,14 +654,29 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         self._render()
 
     def _drum_rack(self):
-        """The selected track's first Drum Rack, or None."""
+        """The first Drum Rack on the bound clip's track, or None.
+
+        The clip's track, not the selected one: the clip keeps playing and
+        stays on the pads while you work on another track, and its drums are
+        what the colours and the picker describe. A kit inside an Instrument
+        or Audio Effect Rack is found too, which is how many Live packs ship.
+        """
+        track = _clip_track(self._clip)
+        rack = None
         try:
-            for device in self.song().view.selected_track.devices:
-                if getattr(device, 'can_have_drum_pads', False):
-                    return device
+            if track is None:
+                track = self.song().view.selected_track
+            rack = _find_drum_rack(track.devices)
         except Exception:
             pass
-        return None
+        label = ('"%s" on track "%s"' % (rack.name, getattr(track, 'name', '?'))
+                 if rack is not None else
+                 'none on track "%s"' % getattr(track, 'name', '?'))
+        if label != self._rack_label:
+            # On a change only: this runs on every render.
+            self._rack_label = label
+            self._log('drum rack -> %s' % label)
+        return rack
 
     def _drum_pads(self):
         """The first Drum Rack's 128 pads, read once, or None without a rack.
@@ -1373,6 +1400,51 @@ def _bars(steps):
     if bars == int(bars):
         bars = int(bars)
     return '%s bar%s' % (bars, '' if bars == 1 else 's')
+
+
+def _clip_track(clip):
+    """The track a clip is on, or None. Never raises."""
+    try:
+        parent = clip.canonical_parent
+    except Exception:
+        return None
+    # A Session clip's parent is its slot, an Arrangement clip's the track.
+    if hasattr(parent, 'has_clip'):
+        return getattr(parent, 'canonical_parent', None)
+    return parent
+
+
+def _find_drum_rack(devices, depth=0):
+    """The first Drum Rack in a device list, looking inside other racks'
+    chains after the top level. Not inside a Drum Rack's own pads."""
+    nested = []
+    for device in devices:
+        if getattr(device, 'can_have_drum_pads', False):
+            return device
+        if getattr(device, 'can_have_chains', False):
+            nested.append(device)
+    if depth >= 3:
+        return None
+    for device in nested:
+        for chain in device.chains:
+            found = _find_drum_rack(chain.devices, depth + 1)
+            if found is not None:
+                return found
+    return None
+
+
+def _clip_label(clip):
+    """'"Beat 1" on track "Drums"', for the log. Never raises."""
+    if clip is None:
+        return 'no clip'
+    try:
+        name = '"%s"' % clip.name if clip.name else 'an unnamed clip'
+    except Exception:
+        return 'a deleted clip'
+    try:
+        return '%s on track "%s"' % (name, _clip_track(clip).name)
+    except Exception:
+        return name
 
 
 def _span(numbers):

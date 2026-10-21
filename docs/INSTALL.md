@@ -288,6 +288,9 @@ Look for these lines:
 MVave_SMC_KNOBS: loaded. CC 17/18 navigate; 16 macro CCs 1,2,...,16; preset 3 CCs 21-36 play device banks (Live bank table, 69 devices).
 MVave_SMC_STEPSEQ: loaded. pads ch 1 notes 101-116, buttons ch 1 notes 117-121.
 MVave_SMC_KNOBS: device -> <device name>
+MVave_SMC_STEPSEQ: clip -> "<clip name>" on track "<track name>"
+MVave_SMC_STEPSEQ: preset 2 up, following the selection
+MVave_SMC_STEPSEQ: drum rack -> "<kit name>" on track "<track name>"
 MVave_SMC_KNOBS: first nav CC -- 17 value 65
 MVave_SMC_KNOBS: first macro CC -- 1 value 65 -> macro 1
 MVave_SMC_KNOBS: first preset 3 knob CC -- 21 value 65 -> slot 1
@@ -297,6 +300,9 @@ MVave_SMC_KNOBS: first preset 3 knob CC -- 21 value 65 -> slot 1
 |---|---|---|
 | `KNOBS: loaded.` | The knob script was found and built. The bracket says whether Live's parameter-bank table was found for preset 3 (`no Live bank table` means Live 11, or a Live without it) | At startup |
 | `STEPSEQ: loaded.` | The sequencer was found and built, and which notes it listens for | At startup |
+| `clip -> …` | The clip the sequencer is editing, or `no clip` | At startup, and whenever that changes |
+| `drum rack -> …` | The Drum Rack the sequencer's colours and drum picker read, or `none` | When the sequencer first draws, and whenever that changes |
+| `preset 2 up` / `preset 2 away, holding …` | Whether the sequencer follows clicks in Live (preset 2 up) or holds its clip (another preset up) | On each switch to or from preset 2 |
 | `device -> …` | The macro knobs have a device to control | **Only once the selected track changes.** Click a track before deciding the macros are broken |
 | `first nav CC` | MIDI is reaching the knob script | The first time you turn encoder 1 or 2 on preset 1's knob bank 2. Logged once only |
 | `first macro CC` | A macro knob reaches the script and resolves to a macro | The first turn of any macro knob. Logged once only |

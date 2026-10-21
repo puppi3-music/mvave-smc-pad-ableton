@@ -1,7 +1,7 @@
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-10-20f'
+SCRIPT_REVISION = '2026-10-20h'
 
 # Hardware and layout constants for the SMC-PAD step sequencer.
 #

@@ -232,7 +232,11 @@ loop end) but ship off — see "There is no dim" below.
 The kind comes from the Drum Rack pad's name, which Live usually takes from the
 sample. A loaded pad's name decides on its own — "Bongo" on C1 is teal, not a
 kick — and only an empty pad or a track with no Drum Rack falls back to the
-General MIDI pitch. Words of three letters or more match anywhere in the name,
+General MIDI pitch. The Drum Rack is the first one on the **bound clip's** track
+(not the selected track, which can differ while the clip is held; see "The
+clip is pinned"), looking inside Instrument and Effect Racks' chains if there
+is none at the top level. Until 2026-10-20 it read the selected track's top
+level only, so a nested kit or a moved selection left the picker dark. Words of three letters or more match anywhere in the name,
 shorter ones only as a whole word; the first kind that matches wins. Two
 caveats: light blue (hats) sits near the picker's blue (`COLOR_PICK_LOADED`),
 and yellow 4 and light blue 7 were only named by eye in the palette sweep —
@@ -478,6 +482,13 @@ what it is listening for, verbatim:
 ```
 MVave_SMC_STEPSEQ: loaded. pads ch 1 notes 101-116, buttons ch 1 notes 117-121.
 ```
+
+After that it names the clip it is editing whenever that changes
+(`clip -> "Beat 1" on track "Drums"`, or `clip -> no clip`), and each switch
+to or from preset 2 (`preset 2 up, following the selection` /
+`preset 2 away, holding …`), and the Drum Rack it reads
+(`drum rack -> "Kit" on track "Drums"`, or `none on track …`), so "why is it still on that clip?" can be read
+straight from the log.
 
 It also logs anything it receives that `MIDI_Map.py` does not describe, once per
 signature — but **do not use that to find out what your unit sends.**
