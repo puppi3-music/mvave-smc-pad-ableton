@@ -219,6 +219,7 @@ launcher and sequencer sources in `reference/`.
 └── tools/
     ├── make_presets.py      builds presets/ from the two sources in reference/
     ├── mvave_probe.py       the MIDI probe
+    ├── play_intro.py        plays the startup intro on the pads without Live
     ├── run_probe.bat        Windows launcher for the probe; builds its own virtualenv
     ├── requirements-midi.txt
     └── stepseq_selftest.py  runs all three scripts against a fake Live, no DAW needed
