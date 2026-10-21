@@ -297,6 +297,28 @@ If you are picking state colours, note that **14 and 15 are adjacent in the hue
 cycle**, so red-pink and orange can be hard to tell apart under stage lighting.
 Swapping one of them for 21 or 24 buys much more contrast.
 
+#### 3.2.2 Which colours tell apart side by side, 2026-10-21
+
+To choose the step sequencer's drum colours, test grids of 16 colours were
+lit straight from a script on macOS (preset 1, bank A) and one person said
+which pads they could not easily tell apart. By eye again, so for choosing
+colours, not measurements.
+
+- **Easy to tell apart, all at once:** red 14, green 5, yellow 46, blue 21,
+  purple 24, absinth green 19, pale pink 28, violet 26, with orange 15 and
+  white 40 beside them. Those are the sequencer's eight drum colours and its
+  playhead's two (STEPSEQ.md §1).
+- **Blurred:** turquoise 6 and teal 20 with blue 21, and sky blue 62 with all
+  three: the palette has one usable blue. Pink 56 with red 14; pink 12 with
+  violet 26, and with pale pink 28; lime 4 with yellow 46; apricot 59 with
+  orange 15.
+- **Also apart:** pink 12 from red 14 and from purple 24; pale pink 28 from
+  white 40; absinth 19 from green 5 and lime 4; purple 24 from violet 26 and
+  blue 21.
+
+So about ten hues can share the grid at once. A design that needs more has
+to reuse one.
+
 ### 3.3 Turning a pad off requires note-on velocity 0
 
 Send note-on with velocity 0. **A real note-off (`0x80`) appears to be ignored
