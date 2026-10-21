@@ -4119,19 +4119,73 @@ class DrumColours(SeqTest):
         self.assertEqual(drum_color(60, 'Low Tom'), self.colour('tom'))
         self.assertEqual(drum_color(60, 'Kick Snare Layer'), self.colour('kick'))
 
+    def test_live_909_kit_names(self):
+        # Live's 909 Core Kit: "Bass Drum" was 'other' (violet) until
+        # 2026-10-21, as 'bassdrum' did not match across the space.
+        drum_color = SEQ_MODULE.drum_color
+        self.assertEqual(drum_color(36, 'Bass Drum'), self.colour('kick'))
+        self.assertEqual(drum_color(36, 'Bass Drum 909'), self.colour('kick'))
+        self.assertEqual(drum_color(36, 'Bass-Drum'), self.colour('kick'))
+        self.assertEqual(drum_color(37, 'Rim Shot 909'), self.colour('snare'))
+        self.assertEqual(drum_color(39, 'Hand Clap'), self.colour('snare'))
+        self.assertEqual(drum_color(42, 'Closed Hi Hat'), self.colour('hat'))
+        self.assertEqual(drum_color(46, 'Open Hi-Hat 909'), self.colour('hat'))
+        self.assertEqual(drum_color(49, 'Crash 909'), self.colour('cymbal'))
+        self.assertEqual(drum_color(51, 'Ride'), self.colour('cymbal'))
+        self.assertEqual(drum_color(45, 'Mid Tom 909'), self.colour('tom'))
+
+    def test_long_words_match_where_a_word_starts(self):
+        # From the 2026-10-21 survey of Live 12's Drum Racks.
+        drum_color = SEQ_MODULE.drum_color
+        self.assertEqual(drum_color(37, 'Rimshot'), self.colour('snare'))
+        self.assertEqual(drum_color(37, 'Sidestick 808'), self.colour('snare'))
+        self.assertEqual(drum_color(39, 'Handclap'), self.colour('snare'))
+        self.assertEqual(drum_color(36, 'Kickdrum Acid House'), self.colour('kick'))
+        self.assertEqual(drum_color(46, 'Hihat Open Brim'), self.colour('hat'))
+        for name in ('Shatter FX', 'FX What', 'Synth Note Wide Phatty F',
+                     'Berimbau Stab', 'Perc Atom', 'Stomp Voltage'):
+            self.assertEqual(drum_color(45, name), C.COLOR_DRUM_OTHER, name)
+
+    def test_hat_abbreviations(self):
+        drum_color = SEQ_MODULE.drum_color
+        for name in ('ClosedHH Acoustified 08', 'OpenHH Acoustified 10',
+                     'DS HHC', 'DS HHO', 'DS HHP', 'Simple CH'):
+            self.assertEqual(drum_color(60, name), self.colour('hat'), name)
+        self.assertEqual(drum_color(60, 'Chord Stab'), C.COLOR_DRUM_OTHER)
+
     def test_short_words_match_only_whole(self):
         # 'sd' must not make "Bassdrive" a snare, nor 'hh' anything with hh in it.
         self.assertEqual(SEQ_MODULE.drum_color(60, 'Bassdrive'), C.COLOR_DRUM_OTHER)
 
     def test_a_name_beats_the_general_midi_map(self):
-        self.assertEqual(SEQ_MODULE.drum_color(36, 'Bongo'), C.COLOR_DRUM_OTHER)
+        self.assertEqual(SEQ_MODULE.drum_color(36, 'Bongo'), self.colour('tom'))
+        self.assertEqual(SEQ_MODULE.drum_color(36, 'Zap'), C.COLOR_DRUM_OTHER)
 
     def test_no_name_falls_back_to_general_midi(self):
         drum_color = SEQ_MODULE.drum_color
         self.assertEqual(drum_color(36), self.colour('kick'))
         self.assertEqual(drum_color(42), self.colour('hat'))
         self.assertEqual(drum_color(49), self.colour('cymbal'))
-        self.assertEqual(drum_color(60), C.COLOR_DRUM_OTHER)
+        self.assertEqual(drum_color(62), self.colour('tom'))        # conga
+        self.assertEqual(drum_color(69), self.colour('handperc'))   # cabasa
+        self.assertEqual(drum_color(84), C.COLOR_DRUM_OTHER)
+
+    def test_hand_percussion_vocals_and_hand_drums(self):
+        drum_color = SEQ_MODULE.drum_color
+        for name in ('Shaker Yolo', 'Tambourine Tap', 'Tambo Trax', 'Cabasa',
+                     'Maracas-808', 'Cowbell-808', 'Claves', 'Wood Block Low',
+                     'Triangle Mute', 'Guiro Short', 'Metal Agogo Hi'):
+            self.assertEqual(drum_color(60, name), self.colour('handperc'), name)
+        for name in ('Conga Mid', 'Bongo Low Open', 'Timbale Skin 1', 'Djembe High'):
+            self.assertEqual(drum_color(60, name), self.colour('tom'), name)
+        for name in ('Vocal Shout DECAP 1', 'Vox Hey', 'FX Vocoder 2'):
+            self.assertEqual(drum_color(60, name), self.colour('vocal'), name)
+        self.assertEqual(drum_color(60, 'Ride Bell'), self.colour('cymbal'))
+        self.assertEqual(drum_color(60, 'Perc Metallic'), C.COLOR_DRUM_OTHER)
+
+    def test_kinds_have_colours_of_their_own(self):
+        colours = [c for _, c, _, _ in C.DRUM_KINDS] + [C.COLOR_DRUM_OTHER]
+        self.assertEqual(len(colours), len(set(colours)))
 
     def test_kind_colours_avoid_the_playhead(self):
         for kind, colour, words, pitches in C.DRUM_KINDS:

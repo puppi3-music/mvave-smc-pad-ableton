@@ -234,30 +234,55 @@ loop end) but ship off — see "There is no dim" below.
 
 | Kind | Colour | Name contains | General MIDI pitches |
 |---|---|---|---|
-| kick | red-pink 14 | kick, bd, bassdrum | 35, 36 |
-| snare / clap | green 5 | snare, sd, clap, snap, rim, stick | 37–40 |
-| hats | light blue 7 | hat, hh, hihat | 42, 44, 46 |
-| cymbals | yellow 4 | crash, ride, cymbal, cym, china, splash | 49, 51–53, 55, 57, 59 |
-| toms | light purple 24 | tom | 41, 43, 45, 47, 48, 50 |
+| kick | red 14 | kick, bd, bassdrum | 35, 36 |
+| snare / clap | green 5 | snare, sd, clap, handclap, snap, rim, stick, sidestick | 37–40 |
+| hats | yellow 46 | hat, hh, hihat, closedhh, openhh, hhc, hho, hhp, ch | 42, 44, 46 |
+| cymbals | blue 21 | crash, ride, cymbal, cym, china, splash | 49, 51–53, 55, 57, 59 |
+| toms, congas, bongos | purple 24 | tom, conga, bongo, timbale, djembe, tumba, cuica | 41, 43, 45, 47, 48, 50, 60–66, 78, 79 |
+| hand percussion | absinth green 19 | shake (shaker), tamb (tambourine, tambo), cabasa, maraca, guiro, triangle, cowbell, clave, castanet, agogo, woodblock | 54, 56, 58, 67–70, 73–77, 80–82 |
+| vocals | pale pink 28 | vocal, vox, voice, vocoder, choir, chant, shout | |
 | anything else | violet 26 | | |
 
 The kind comes from the Drum Rack pad's name, which Live usually takes from the
-sample. A loaded pad's name decides on its own — "Bongo" on C1 is violet, not a
+sample. A loaded pad's name decides on its own — "Bongo" on C1 is a tom, not a
 kick — and only an empty pad or a track with no Drum Rack falls back to the
 General MIDI pitch. The Drum Rack is the first one on the **bound clip's** track
 (not the selected track, which can differ while the clip is held; see "The
 clip is pinned"), looking inside Instrument and Effect Racks' chains if there
 is none at the top level. Until 2026-10-20 it read the selected track's top
-level only, so a nested kit or a moved selection left the picker dark. Words of three letters or more match anywhere in the name,
-shorter ones only as a whole word; the first kind that matches wins. Until
-2026-10-21 "anything else" was teal 20, but light blue 7 and teal look alike on
-the pads (HARDWARE.md 3.2.1), so hats and other drums were hard to tell apart.
-Violet 26 replaced it: the strongest hue nothing else in the sequencer uses.
-Caveats: light blue (hats) sits near the picker's blue (`COLOR_PICK_LOADED`);
-violet 26 is two steps from the toms' light purple 24 in the hue cycle (try
-pink 12 if they blur); and yellow 4, light blue 7 and violet 26 were only named
-by eye in the palette sweep — none has been seen in the sequencer on hardware
-yet. `DRUM_COLORS = False` brings back teal
+level only, so a nested kit or a moved selection left the picker dark. Words
+of three letters or more match where a word of the name starts, running on
+into the next words: Live's 909 kit's "Bass Drum" is a kick and "Rimshot" a
+snare, but "Shatter FX" is no hat, "Berimbau" no rimshot and "Perc Atom" no
+tom. Shorter ones match only as a whole word, and the first kind that matches
+wins.
+
+The word lists were checked on 2026-10-21 against every Drum Rack in Live
+12's Core Library and installed packs (5,811 pads in 354 kits, named as Live
+shows them, from the pad's device or its sample). Before that, words matched
+anywhere in a name, so 909 kicks ("Bass Drum") lit as "anything else"
+(violet) while "Shatter" lit as a hat and "Perc Atom"
+as a tom. The survey also added the hat abbreviations ("ClosedHH", "DS HHC",
+"Simple CH"). Left out: `oh`, `floor` and `boom`, which also caught "Vox Oh",
+"Forest Floor" and "Snare Loose Boom". The survey's hand percussion (353
+pads), congas and bongos (125, now toms) and vocals (110) were "anything
+else" until they got the rows above the same day. About a fifth of all pads
+are still "anything else": generic "Perc" (in Live's kits as often a synth
+blip as a hand drum, so left out), effects, synths, chops and pitched
+one-shots.
+
+The eight colours were picked side by side on the pads on 2026-10-21, from
+test grids lit straight from a script: they and the playhead's amber and
+white were all easy to tell apart. What blurred, and so was left out:
+turquoise 6 and teal 20 with blue 21 (the palette has one usable blue), pink
+56 with the red, pink 12 with the violet, lime 4 with the yellow, sky blue 62
+with the blues and apricot 59 with the playhead's amber
+([HARDWARE.md 3.2.2](HARDWARE.md)). Until that day "anything else" was teal
+20, hats light blue 7 and cymbals yellow 4; hats became yellow by request.
+Absinth green 19 (hand percussion) sits nearest the snares' green 5: if the
+two blur on your unit, change one. Blue 21 is also the picker's blue
+(`COLOR_PICK_LOADED`), used only with `DRUM_COLORS` off. The colours have
+not yet been seen in the sequencer in Live. `DRUM_COLORS = False` brings back teal
 steps and the fixed overview rows (green, red-pink, blue, purple, bottom up),
 and the picker's teal/blue scheme above.
 

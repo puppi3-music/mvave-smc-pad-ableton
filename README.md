@@ -84,9 +84,12 @@ does.
 **Step sequencer.** The clip is the only state it keeps, so Ctrl+Z undoes a
 step, saving the set saves the pattern, and a note drawn with the mouse lights
 up on the pads. The 16 pads follow the playhead, so a 32- or 64-step loop needs
-no paging. Steps light in their drum's colour (kick red-pink, snare and clap
-green, hats light blue, cymbals yellow, toms purple), taken from the Drum Rack
-pad's name, or from the General MIDI note when there is no name. Live's status
+no paging. Steps light in their drum's colour (kick red, snare and clap green,
+hats yellow, cymbals blue, toms, congas and bongos purple, shakers,
+tambourines and other hand percussion absinth green, vocals pale pink,
+anything else violet; picked side by side on the pads so no two look alike),
+taken from the Drum Rack pad's name, or from the General MIDI note when there
+is no name. Live's status
 bar names every edit and page. New steps are written at the velocity picked
 with the controller's own setting (Shift + pad 9–12: 40, 70, 100 or 127), and
 it starts at 127. While another preset is up, the sequencer keeps its clip
@@ -252,8 +255,10 @@ adds it itself on Live 12.4 (`Track.insert_device`).
 - In the sequencer, added 2026-10-20: changing the clip length with Record +
   `<` `>`, skipping empty banks of a Drum Rack, drum colours in the picker, and
   the Stop and arrow LEDs ([STEPSEQ.md](docs/STEPSEQ.md) §1).
-- The sequencer's violet for "anything else" drums, which replaced teal on
-  2026-10-21 because teal and the hi-hats' light blue looked alike.
+- The sequencer's drum colours of 2026-10-21 (hats yellow 46, cymbals blue
+  21, hand percussion absinth green 19, vocals pale pink 28, anything else
+  violet 26): picked side by side on the pads from a test grid, not yet seen
+  in the sequencer in Live.
 - Several `_Framework` behaviours that could not be checked outside Live are
   marked as such in the code and in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 

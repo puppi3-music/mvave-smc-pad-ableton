@@ -24,16 +24,18 @@
     /* pad colours, as the controller shows them */
     --c-green: #3fbf63;
     --c-orange: #f08a24;
-    --c-pink: #e8507e;
+    --c-red: #e5403a;
+    --c-palepink: #f7c3d8;
     --c-blue: #3d7ef0;
     --c-purple: #a68be6;
     --c-teal: #22b5a5;
     --c-amber: #f3b739;
     --c-white: #f4f4f1;
     --c-yellow: #eadb3c;
-    --c-hat: #7cc4f2;
+    --c-lightblue: #7cc4f2;
     --c-violet: #8a4fe0;
     --c-ice: #d3e6f7;
+    --c-absinth: #a3c23a;
     --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
     --cond: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
     --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -151,14 +153,13 @@
   .pad.off { color: var(--pad-label); }
   .pad.green { background: var(--c-green); }
   .pad.orange { background: var(--c-orange); }
-  .pad.pink { background: var(--c-pink); }
+  .pad.red { background: var(--c-red); }
   .pad.blue { background: var(--c-blue); }
   .pad.purple { background: var(--c-purple); }
   .pad.teal { background: var(--c-teal); }
   .pad.amber { background: var(--c-amber); }
   .pad.white { background: var(--c-white); }
   .pad.yellow { background: var(--c-yellow); }
-  .pad.hat { background: var(--c-hat); }
   .pad.ice { background: var(--c-ice); }
   #keys-settings .pad { cursor: pointer; transition: box-shadow 0.1s; }
   #keys-settings .pad:hover, #keys-settings .pad:focus-visible, #keys-settings .pad.previewing {
@@ -238,7 +239,7 @@
   .tip strong { font-family: var(--cond); }
   .mini { display: grid; grid-template-columns: repeat(4, 22px); gap: 3px; flex: none; }
   .mini span { width: 22px; height: 22px; border-radius: 3px; background: var(--pad-off); }
-  .mini .k { background: var(--c-pink); } .mini .s { background: var(--c-green); } .mini .h { background: var(--c-hat); }
+  .mini .k { background: var(--c-red); } .mini .s { background: var(--c-green); } .mini .h { background: var(--c-yellow); }
   .mini .b, .mini .r { background: var(--c-blue); } .mini .p { background: var(--c-purple); } .mini .w { background: var(--c-white); }
   .with-mini { display: flex; gap: 16px; align-items: start; margin-top: 6px; }
   .with-mini .see { margin-top: 0; }
@@ -354,13 +355,13 @@
           <li><span>Switch the controller to <strong>preset 2</strong>.
             <span class="see">dark pads: nothing is programmed yet. Steps read left to right, top to bottom, like text, so the left-hand column is the four beats of the bar (steps 1, 5, 9 and 13).</span></span></li>
           <li><span><strong>Kick.</strong> Hold <kbd>Record</kbd> and check the bottom-left pad is white: that's C1, the kick in almost every kit. If it isn't white, press it. Let go of <kbd>Record</kbd>, then press the four pads of the left-hand column.
-            <span class="with-mini"><span class="mini" aria-label="Kick on steps 1, 5, 9 and 13"><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span></span><span class="see">four red-pink pads down the left side, a four-on-the-floor kick.</span></span></span></li>
+            <span class="with-mini"><span class="mini" aria-label="Kick on steps 1, 5, 9 and 13"><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span></span><span class="see">four red pads down the left side, a four-on-the-floor kick.</span></span></span></li>
           <li><span>Press <kbd>Play</kbd> to launch the clip.
             <span class="see">an amber light stepping across the pads. That's the playhead, and it turns white as it passes a step that's on.</span></span></li>
           <li><span><strong>Snare or clap.</strong> Hold <kbd>Record</kbd> and press the third pad on the bottom row (D1, snare) or the fourth (D#1, clap). Let go and press <strong>steps 5 and 13</strong>: the second and fourth pads down the left column. That's the backbeat, on beats 2 and 4.
             <span class="with-mini"><span class="mini" aria-label="Snare on steps 5 and 13"><span></span><span></span><span></span><span></span><span class="s"></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="s"></span><span></span><span></span><span></span></span><span class="see">two green pads. The kick's steps are gone from view because the pads show one drum at a time; it's still playing.</span></span></span></li>
           <li><span><strong>Hi-hats.</strong> Hold <kbd>Record</kbd> and press the third pad on the second row up (F#1, closed hat). Let go and press the whole <strong>third column</strong>: steps 3, 7, 11 and 15, the off-beats.
-            <span class="with-mini"><span class="mini" aria-label="Hats on steps 3, 7, 11 and 15"><span></span><span></span><span class="h"></span><span></span><span></span><span></span><span class="h"></span><span></span><span></span><span></span><span class="h"></span><span></span><span></span><span></span><span class="h"></span><span></span></span><span class="see">a light-blue column. You now have a full house/pop groove.</span></span></span></li>
+            <span class="with-mini"><span class="mini" aria-label="Hats on steps 3, 7, 11 and 15"><span></span><span></span><span class="h"></span><span></span><span></span><span></span><span class="h"></span><span></span><span></span><span></span><span class="h"></span><span></span><span></span><span></span><span class="h"></span><span></span></span><span class="see">a yellow column. You now have a full house/pop groove.</span></span></span></li>
           <li><span><strong>See it all at once.</strong> Hold <kbd>Record</kbd>, press the kick again, let go, then press and release <kbd>Stop</kbd>.
             <span class="see">four rows of four steps: kick on the bottom row, then C#1, snare and clap above it, the same order as Live's piano roll. <kbd>&lt;</kbd> <kbd>&gt;</kbd> move along the bar four steps at a time. Press <kbd>Stop</kbd> again to go back.</span></span></li>
           <li><span><strong>Shape the sound.</strong> The knobs on knob bank 1 turn the Drum Rack's macros. To tweak just the kick (its decay, say), hold <kbd>Stop</kbd> and press <kbd>&gt;</kbd>: the knobs move to the drum you last picked. Hold <kbd>Stop</kbd> and press <kbd>&lt;</kbd> to go back to the rack.</span></li>
@@ -534,7 +535,7 @@
         <div class="grid">
           <div class="pad green"></div><div class="pad orange"></div><div class="pad orange"></div><div class="pad off"></div>
           <div class="pad orange"></div><div class="pad blue"></div><div class="pad off"></div><div class="pad orange"></div>
-          <div class="pad off"></div><div class="pad orange"></div><div class="pad pink"></div><div class="pad off"></div>
+          <div class="pad off"></div><div class="pad orange"></div><div class="pad red"></div><div class="pad off"></div>
           <div class="pad off"></div><div class="pad off"></div><div class="pad off"></div><div class="pad off"></div>
         </div>
         <div class="device-caption"><span>Scene 1 at the top</span><span>Scene 4 at the bottom</span></div>
@@ -546,7 +547,7 @@
           <li><span class="swatch" style="background:var(--c-green)"></span>Playing</li>
           <li><span class="swatch" style="background:var(--c-orange)"></span>Clip loaded, stopped</li>
           <li><span class="swatch" style="background:var(--c-blue)"></span>Waiting to start</li>
-          <li><span class="swatch" style="background:var(--c-pink)"></span>Recording</li>
+          <li><span class="swatch" style="background:var(--c-red)"></span>Recording</li>
           <li><span class="swatch" style="background:var(--c-purple)"></span>Waiting to record</li>
           <li><span class="swatch" style="background:var(--pad-off)"></span>Empty slot</li>
         </ul>
@@ -598,7 +599,7 @@
           </div>
           <span class="row-label">Arm</span>
           <div class="grid">
-            <div class="pad off"></div><div class="pad off"></div><div class="pad off"></div><div class="pad pink"></div>
+            <div class="pad off"></div><div class="pad off"></div><div class="pad off"></div><div class="pad red"></div>
           </div>
           <span class="row-label">Stop</span>
           <div class="grid">
@@ -616,7 +617,7 @@
             <tbody>
               <tr><td><span class="swatch" style="background:var(--c-yellow);display:inline-block;vertical-align:middle"></span> Top</td><td>Mute or unmute</td><td>The track is playing, not muted</td></tr>
               <tr><td><span class="swatch" style="background:var(--c-blue);display:inline-block;vertical-align:middle"></span> Second</td><td>Solo</td><td>Soloed</td></tr>
-              <tr><td><span class="swatch" style="background:var(--c-pink);display:inline-block;vertical-align:middle"></span> Third</td><td>Arm for recording</td><td>Armed</td></tr>
+              <tr><td><span class="swatch" style="background:var(--c-red);display:inline-block;vertical-align:middle"></span> Third</td><td>Arm for recording</td><td>Armed</td></tr>
               <tr><td><span class="swatch" style="background:var(--c-purple);display:inline-block;vertical-align:middle"></span> Bottom</td><td>Stop the track's clip</td><td>A clip is playing (white while the stop waits for the bar)</td></tr>
             </tbody>
           </table>
@@ -650,9 +651,9 @@
       <figure class="device" style="margin:0" aria-label="Example pad colours in step-sequencer mode">
         <div class="device-caption"><span>Example</span><span>The kick, 16 steps</span></div>
         <div class="grid">
-          <div class="pad pink">1</div><div class="pad off">2</div><div class="pad off">3</div><div class="pad off">4</div>
-          <div class="pad pink">5</div><div class="pad amber">6</div><div class="pad off">7</div><div class="pad off">8</div>
-          <div class="pad pink">9</div><div class="pad off">10</div><div class="pad off">11</div><div class="pad pink">12</div>
+          <div class="pad red">1</div><div class="pad off">2</div><div class="pad off">3</div><div class="pad off">4</div>
+          <div class="pad red">5</div><div class="pad amber">6</div><div class="pad off">7</div><div class="pad off">8</div>
+          <div class="pad red">9</div><div class="pad off">10</div><div class="pad off">11</div><div class="pad red">12</div>
           <div class="pad white">13</div><div class="pad off">14</div><div class="pad off">15</div><div class="pad off">16</div>
         </div>
         <div class="device-caption"><span>Step 1 top-left</span><span>Step 16 bottom-right</span></div>
@@ -661,7 +662,7 @@
       <div class="explain">
         <h3 id="sequencer-what-the-colours-mean">What the colours mean</h3>
         <ul class="legend">
-          <li><span class="swatch" style="background:var(--c-pink)"></span>Step is on, in the drum's colour (see below)</li>
+          <li><span class="swatch" style="background:var(--c-red)"></span>Step is on, in the drum's colour (see below)</li>
           <li><span class="swatch" style="background:var(--c-amber)"></span>Playhead</li>
           <li><span class="swatch" style="background:var(--c-white)"></span>Playhead on a step that's on</li>
           <li><span class="swatch" style="background:var(--pad-off)"></span>Step is off, or past the end of the loop</li>
@@ -676,9 +677,9 @@
       <figure class="device" style="margin:0" aria-label="Example pad colours while Record is held">
         <div class="device-caption"><span>Example</span><span>Record held</span></div>
         <div class="grid">
-          <div class="pad off">C2</div><div class="pad yellow">C#2</div><div class="pad off">D2</div><div class="pad off">D#2</div>
-          <div class="pad hat">G#1</div><div class="pad off">A1</div><div class="pad hat">A#1</div><div class="pad off">B1</div>
-          <div class="pad off">E1</div><div class="pad purple">F1</div><div class="pad hat">F#1</div><div class="pad purple">G1</div>
+          <div class="pad off">C2</div><div class="pad blue">C#2</div><div class="pad off">D2</div><div class="pad off">D#2</div>
+          <div class="pad yellow">G#1</div><div class="pad off">A1</div><div class="pad yellow">A#1</div><div class="pad off">B1</div>
+          <div class="pad off">E1</div><div class="pad purple">F1</div><div class="pad yellow">F#1</div><div class="pad purple">G1</div>
           <div class="pad white">C1</div><div class="pad green">C#1</div><div class="pad green">D1</div><div class="pad green">D#1</div>
         </div>
         <div class="device-caption"><span>C1 bottom-left</span><span>D#2 top-right</span></div>
@@ -687,7 +688,7 @@
         <p>Hold <kbd>Record</kbd> and the pads switch from steps to drums, until you let go:</p>
         <ul class="legend">
           <li><span class="swatch" style="background:var(--c-white)"></span>The drum you're editing now</li>
-          <li><span class="swatch" style="background:linear-gradient(90deg,var(--c-pink) 0 33%,var(--c-green) 33% 66%,var(--c-yellow) 66%)"></span><span>Every other drum, in its own colour, the same as its steps (see <a href="#sequencer-drum-colours">Drum colours</a>)</span></li>
+          <li><span class="swatch" style="background:linear-gradient(90deg,var(--c-red) 0 33%,var(--c-green) 33% 66%,var(--c-yellow) 66%)"></span><span>Every other drum, in its own colour, the same as its steps (see <a href="#sequencer-drum-colours">Drum colours</a>)</span></li>
           <li><span class="swatch" style="background:var(--pad-off)"></span>An empty Drum Rack pad</li>
         </ul>
         <p>While the clip plays, each drum's pad flashes white every time the pattern plays it, so you can watch the kit play along and see which drums are in the pattern. The white pad (the drum you're editing) flashes its own colour instead. Only the clip's playback flashes; hits on the <kbd>PAD BANK</kbd> drum pads don't.</p>
@@ -720,14 +721,16 @@
     <h3 id="sequencer-drum-colours">Drum colours</h3>
     <p>Steps light in the colour of the drum they play, in both views, so you can tell what you're editing at a glance:</p>
     <ul class="legend">
-      <li><span class="swatch" style="background:var(--c-pink)"></span>Kick</li>
+      <li><span class="swatch" style="background:var(--c-red)"></span>Kick</li>
       <li><span class="swatch" style="background:var(--c-green)"></span>Snare, clap, rim</li>
-      <li><span class="swatch" style="background:var(--c-hat)"></span>Hi-hats</li>
-      <li><span class="swatch" style="background:var(--c-yellow)"></span>Cymbals: crash, ride, china, splash</li>
-      <li><span class="swatch" style="background:var(--c-purple)"></span>Toms</li>
+      <li><span class="swatch" style="background:var(--c-yellow)"></span>Hi-hats</li>
+      <li><span class="swatch" style="background:var(--c-blue)"></span>Cymbals: crash, ride, china, splash</li>
+      <li><span class="swatch" style="background:var(--c-purple)"></span>Toms, congas, bongos</li>
+      <li><span class="swatch" style="background:var(--c-absinth)"></span>Hand percussion: shakers, tambourines, cowbells, claves, triangles</li>
+      <li><span class="swatch" style="background:var(--c-palepink)"></span>Vocals</li>
       <li><span class="swatch" style="background:var(--c-violet)"></span>Anything else</li>
     </ul>
-    <p>The script goes by the Drum Rack pad's name (usually the sample's), so a pad called <code>Kick 808</code> is a kick wherever it sits. Pads with no sound, or a track with no Drum Rack, go by the standard General MIDI drum notes instead: C1 kick, D1 snare, F#1 hat and so on. The same colours show on the drums while you hold <kbd>Record</kbd>. The Drum Rack is the one on the sequencer clip's track, even while another track is selected, and a kit inside another rack counts too.</p>
+    <p>The script goes by the Drum Rack pad's name (usually the sample's), so a pad called <code>Kick 808</code> or <code>Bass Drum</code> is a kick wherever it sits. Pads with no sound, or a track with no Drum Rack, go by the standard General MIDI drum notes instead: C1 kick, D1 snare, F#1 hat and so on. The same colours show on the drums while you hold <kbd>Record</kbd>. The Drum Rack is the one on the sequencer clip's track, even while another track is selected, and a kit inside another rack counts too.</p>
 
     <div class="note">
       <strong>Step velocity comes from Shift + pad 9–12, not from how hard you hit.</strong>
@@ -788,7 +791,7 @@
     <h3 id="keys-changing-key-scale-and-octave">Changing key, scale and octave</h3>
     <p>Press <kbd>PAD BANK</kbd>. The bottom three rows choose the key: press a note and it lights blue. Press the blue key again to switch layout (below); in the chromatic layout it lights white-blue instead. The top row moves the keyboard down or up an octave and steps back or forward through the scales. Live's status bar, at the bottom of the window, shows the new key, scale, layout and the notes the pads now cover. Press <kbd>PAD BANK</kbd> again to play.</p>
     <ul class="legend">
-      <li class="wide"><span class="swatch" style="width:72px;background:linear-gradient(90deg,var(--c-purple),var(--c-blue),var(--c-hat),var(--c-teal),var(--c-yellow),var(--c-orange),var(--c-pink),var(--c-white))"></span><span>Each octave pad lights in the colour of the octave it would take you to, on a cold-to-hot scale: purple at the lowest octave, then blue, light blue, turquoise, yellow (octave 3, where it starts, C3 at bottom-left), orange, red-pink, pink, light pink and white at the highest. At the start, <strong>Oct −</strong> is turquoise and <strong>Oct +</strong> orange. A pad goes dark when you can't go further that way.</span></li>
+      <li class="wide"><span class="swatch" style="width:72px;background:linear-gradient(90deg,var(--c-purple),var(--c-blue),var(--c-lightblue),var(--c-teal),var(--c-yellow),var(--c-orange),var(--c-red),var(--c-white))"></span><span>Each octave pad lights in the colour of the octave it would take you to, on a cold-to-hot scale: purple at the lowest octave, then blue, light blue, turquoise, yellow (octave 3, where it starts, C3 at bottom-left), orange, red, pink, light pink and white at the highest. At the start, <strong>Oct −</strong> is turquoise and <strong>Oct +</strong> orange. A pad goes dark when you can't go further that way.</span></li>
     </ul>
     <p>The key and scale are the same ones as Live's <strong>Scale</strong> setting in the control bar. Change them on the controller and Live follows; change them in Live and the pads follow.</p>
     <p>The scales, in order: Major, Minor, Dorian, Mixolydian, Lydian, Phrygian, Locrian, Harmonic Minor, Melodic Minor, Major Pentatonic, Minor Pentatonic and Minor Blues. The list goes round, and when you get back to Major the scale pad you pressed flickers white three times, so you know you're at the start.</p>

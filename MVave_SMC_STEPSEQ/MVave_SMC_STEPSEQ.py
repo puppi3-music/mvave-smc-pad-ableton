@@ -108,15 +108,20 @@ def drum_color(pitch, name=''):
     """What colour a drum's steps light: its kind from the pad name, else GM.
 
     A non-empty name decides on its own -- a pad called "Bongo" on pitch 36 is
-    'other', not a kick -- because the name is what the user sees in the rack.
+    a tom, not a kick -- because the name is what the user sees in the rack.
     The General MIDI map only stands in when there is no name to go on.
+    A key of three letters or more matches where a word starts, running on
+    into the next words, so Live's 909 kit's "Bass Drum" is a kick and
+    "Rimshot" a snare, but "Shatter" is no hat and "Perc Atom" no tom.
     """
     if name:
-        lowered = name.lower()
-        words = set(re.split('[^a-z0-9]+', lowered))
+        words = [w for w in re.split('[^a-z0-9]+', name.lower()) if w]
+        # Each word with the rest of the name run on behind it.
+        tails = [''.join(words[i:]) for i in range(len(words))]
         for kind, color, keys, pitches in DRUM_KINDS:
             for key in keys:
-                if key in words or (len(key) >= 3 and key in lowered):
+                if key in words or (len(key) >= 3 and any(
+                        tail.startswith(key) for tail in tails)):
                     return color
         return COLOR_DRUM_OTHER
     for kind, color, keys, pitches in DRUM_KINDS:

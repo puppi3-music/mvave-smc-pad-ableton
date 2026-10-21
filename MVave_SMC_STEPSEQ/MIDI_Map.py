@@ -1,7 +1,7 @@
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-10-21a'
+SCRIPT_REVISION = '2026-10-21b'
 
 # Hardware and layout constants for the SMC-PAD step sequencer.
 #
@@ -208,32 +208,56 @@ LANE_COLORS = (5, 14, 21, 24)
 # What a drum IS comes from its Drum Rack pad name, which Live usually takes
 # from the sample ("Kick 808", "Crash 2"). A loaded pad whose name matches
 # nothing is 'other'. With no Drum Rack, or an empty pad, the General MIDI drum
-# map decides by pitch instead. Words of three letters or more match anywhere in
-# the name; shorter ones ('bd', 'hh') only as a whole word, so 'ch' does not
-# turn "Chord" into a hat. First match wins, so a "Kick Snare" layer is a kick.
+# map decides by pitch instead. Words of three letters or more match where a
+# word of the name starts, and may run on into the next words: "Bass Drum"
+# (Live's 909 kit) and "Rimshot" match, "Shatter" (hat), "Berimbau" (rim)
+# and "Perc Atom" (tom) don't. Shorter ones ('bd', 'hh', 'ch') only match a
+# whole word, so 'ch' does not turn "Chord" into a hat. First match wins, so
+# a "Kick Snare" layer is a kick. The words were checked on 2026-10-21
+# against the 5,811 pads of the 354 Drum Racks in Live 12's Core Library and
+# packs; 'oh', 'floor' and 'boom' were left out, as they caught "Vox Oh",
+# "Forest Floor" and "Snare Loose Boom". Congas and bongos count as toms;
+# shakers, tambourines, cowbells and the like are hand percussion; vocals
+# have their own colour. 'perc' alone stays 'other': in Live's kits it is as
+# often a synth blip as a hand drum.
 #
-# Colours avoid the playhead's amber (15) and white (40). Caveats:
-#   - Light blue (7, hats) sits near the picker's blue (21). If they blur on
-#     your unit, change one of them.
-#   - 4 and 7 come from the by-eye palette sweep (HARDWARE.md 3.2) and nothing
-#     had lit them in this script before. UNVERIFIED on the pads.
-#   - 'other' was teal (20, COLOR_STEP_ON) until 2026-10-21, but 7 and 20 look
-#     alike (HARDWARE.md 3.2.1) and teal reads as blue on the pads, so hats and
-#     other drums blurred. Violet 26 is the strongest hue no kind or the
-#     playhead uses; it sits two steps from the toms' light purple (24) in the
-#     hue cycle. UNVERIFIED on the pads: if 24 and 26 blur, try pink 12.
+# Colours avoid the playhead's amber (15) and white (40). On 2026-10-21 they
+# were picked side by side on the pads (macOS, a test grid lit straight from
+# a script): red 14, green 5, yellow 46, blue 21, purple 24, absinth green 19,
+# pale pink 28 and violet 26 were all easy to tell apart and from the
+# playhead's two. What blurred: turquoise 6 and teal 20 with blue 21 (one
+# blue only), pink 56 with red 14, pink 12 with violet 26, lime 4 with
+# yellow 46, sky blue 62 with the blues, apricot 59 with orange 15. Caveats:
+#   - Hats were light blue 7 and cymbals yellow 4 until 2026-10-21, when hats
+#     became yellow by request and cymbals blue 21. 21 is also the picker's
+#     blue, but that is only used with DRUM_COLORS off.
+#   - 'other' was teal (20, COLOR_STEP_ON) until 2026-10-21, but it blurred
+#     with the light-blue hats. Now violet 26.
+#   - Hand percussion is absinth green 19, beside the snares' green 5: they
+#     looked apart on the pads, but are the pair to change if not on yours.
+#   - Vocals are pale pink 28, the one pink that stood apart from both the red
+#     and the violet. It also stood apart from the playhead's white.
 # DRUM_COLORS = False brings back teal steps and LANE_COLORS rows.
 DRUM_COLORS = True
 COLOR_DRUM_OTHER = 26               # violet: a drum none of the kinds below match
 DRUM_KINDS = (
     # (kind, colour, name words, General MIDI pitches)
-    ('kick', 14, ('kick', 'bd', 'bassdrum'), (35, 36)),           # red-pink
-    ('snare', 5, ('snare', 'sd', 'clap', 'snap', 'rim', 'stick'),
+    ('kick', 14, ('kick', 'bd', 'bassdrum'), (35, 36)),           # red
+    ('snare', 5, ('snare', 'sd', 'clap', 'handclap', 'snap', 'rim', 'stick',
+                  'sidestick'),
      (37, 38, 39, 40)),                                            # green
-    ('hat', 7, ('hat', 'hh', 'hihat'), (42, 44, 46)),              # light blue
-    ('cymbal', 4, ('crash', 'ride', 'cymbal', 'cym', 'china', 'splash'),
-     (49, 51, 52, 53, 55, 57, 59)),                                # yellow
-    ('tom', 24, ('tom',), (41, 43, 45, 47, 48, 50)),               # light purple
+    ('hat', 46, ('hat', 'hh', 'hihat', 'closedhh', 'openhh', 'hhc', 'hho',
+                 'hhp', 'ch'), (42, 44, 46)),                       # yellow
+    ('cymbal', 21, ('crash', 'ride', 'cymbal', 'cym', 'china', 'splash'),
+     (49, 51, 52, 53, 55, 57, 59)),                                # blue
+    ('tom', 24, ('tom', 'conga', 'bongo', 'timbale', 'djembe', 'tumba',
+                 'cuica'),
+     (41, 43, 45, 47, 48, 50, 60, 61, 62, 63, 64, 65, 66, 78, 79)),  # purple
+    ('handperc', 19, ('shake', 'tamb', 'cabasa', 'maraca', 'guiro', 'triangle',
+                      'cowbell', 'clave', 'castanet', 'agogo', 'woodblock'),
+     (54, 56, 58, 67, 68, 69, 70, 73, 74, 75, 76, 77, 80, 81, 82)),  # absinth green
+    ('vocal', 28, ('vocal', 'vox', 'voice', 'vocoder', 'choir', 'chant',
+                   'shout'), ()),                                 # pale pink
 )
 
 # The lane picker, shown while MOD is held: the 16 pads become the 16 drums
