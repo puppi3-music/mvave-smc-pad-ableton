@@ -1991,32 +1991,47 @@ class Configuration(unittest.TestCase):
                      'TRACKSENDC', 'PARAMCONTROL',
                      # Drum-rack pitches Live translates TO; never transmitted.
                      'DRUM_PADS'}
-        launcher = set()
+        # Constants named *_LEDS are LED numbers the launcher sends, the rest
+        # notes it receives (or colours, which collide with nothing). The two
+        # directions are separate on the wire: preset 4's pads send 65-80,
+        # which the sequencer only ever sends as LEDs (69-84), and that is no
+        # collision.
+        launcher, launcher_leds = set(), set()
         for name in dir(pad):
             if not name.isupper() or name in not_notes or name.startswith('CLIP_'):
                 continue
+            into = launcher_leds if name.endswith('_LEDS') else launcher
             value = getattr(pad, name)
             if isinstance(value, int):
-                launcher.add(value)
+                into.add(value)
             elif isinstance(value, tuple):
                 for item in value:
                     if isinstance(item, int):
-                        launcher.add(item)
+                        into.add(item)
                     elif isinstance(item, tuple):
-                        launcher.update(i for i in item if isinstance(i, int))
+                        into.update(i for i in item if isinstance(i, int))
         launcher.discard(-1)
 
         # LED_NOTES too: it decides where _send_led writes on the MIDIOUT3 both
         # scripts share, and the map file records having held a fixed 1-16 LED
         # map once already. Without it, one constant makes the sequencer paint
         # its step colours onto the launcher's clip slots, suite still green.
-        mine = set(C.PAD_NOTES) | set(C.PAD_NOTES_B) | set(C.LED_NOTES)
-        mine.update(n for n in (C.BTN_PLAY, C.BTN_VIEW, C.BTN_MOD,
-                                C.BTN_LEFT, C.BTN_RIGHT) if n is not None)
+        buttons = set(n for n in (C.BTN_PLAY, C.BTN_VIEW, C.BTN_MOD,
+                                  C.BTN_LEFT, C.BTN_RIGHT) if n is not None)
+        mine = set(C.PAD_NOTES) | set(C.PAD_NOTES_B) | buttons
+        mine_leds = set(C.LED_NOTES) | buttons   # buttons light at their note
+        # The clip grid and mixer light at note + offset, not a constant.
+        clips = [n for row in pad.CLIPNOTEMAP for n in row if n >= 0]
+        mixer = [n for n in pad.TRACKMUTE + pad.TRACKSOLO + pad.TRACKREC + pad.TRACKSTOP
+                 if n >= 0]
+        launcher_leds.update(n + pad.PAD_LED_OFFSET for n in clips)
+        launcher_leds.update(n + pad.MIXER_LED_OFFSET for n in mixer)
 
         if C.PAD_CHANNEL == pad.BUTTONCHANNEL:
             self.assertEqual(mine & launcher, set(),
                              'sequencer and clip launcher share notes on one port')
+            self.assertEqual(mine_leds & launcher_leds, set(),
+                             'sequencer and clip launcher share LEDs on one port')
 
     def test_pads_and_buttons_do_not_collide(self):
         buttons = set(n for n in (C.BTN_PLAY, C.BTN_VIEW, C.BTN_MOD,
@@ -2731,8 +2746,12 @@ class PresetSwitchRepaint(unittest.TestCase):
             for note in group:
                 if note >= 0:       # -1 = an unused slot in the map
                     self.assertEqual(notes[note], layouts, note)
+        for group, layouts in ((M.CHORDS_NOTES, ((3, 0),)),
+                               (M.CHORDS_SETTINGS_NOTES, ((3, 1),))):
+            for note in group:
+                self.assertEqual(notes[note], layouts, note)
         for note in (M.PLAY, M.STOP, M.REC, M.TRACKLEFT, M.TRACKRIGHT):
-            self.assertEqual(notes[note], ((0, None), (2, None)))
+            self.assertEqual(notes[note], ((0, None), (2, None), (3, None)))
         for note in (C.BTN_PLAY, C.BTN_VIEW, C.BTN_MOD, C.BTN_LEFT, C.BTN_RIGHT):
             self.assertEqual(notes[note], ((1, None),))
 
@@ -3311,6 +3330,318 @@ class Keyboard(unittest.TestCase):
                                  (0x04, notes[pad], leds[pad]))
 
 
+
+class Chords(unittest.TestCase):
+    """Preset 4: KeysMode(chords=True), beside preset 3's keyboard."""
+
+    def setUp(self):
+        self.mod = _load_keys_mode()
+        self.M = _load_launcher_map()
+        self.song = FakeScaleSong()
+        self.surface = FakeKeysSurface(self.song)
+        self.note_map = [FakeKeyButton(n) for n in range(128)]
+        self.keys = self.mod.KeysMode(self.surface, self.note_map)
+        self.chords = self.mod.KeysMode(self.surface, self.note_map, chords=True)
+
+    def tearDown(self):
+        self.assertEqual([w for w in self.surface.logged if w != 'keys: set Live scale'], [])
+
+    def played(self, notes=None):
+        return [self.note_map[n].identifier for n in notes or self.M.CHORDS_NOTES]
+
+    def led(self, number):
+        return [m[2] for m in self.surface.sent if m[1] == number][-1]
+
+    def settings(self, index):
+        self.note_map[self.M.CHORDS_SETTINGS_NOTES[index]].press()
+
+    def test_c_major_chords_go_up_the_scale_one_pad_at_a_time(self):
+        # I ii iii IV / V vi vii I / ii ... with no repeats.
+        self.assertEqual(self.played(), [60, 62, 64, 65, 67, 69, 71, 72,
+                                         74, 76, 77, 79, 81, 83, 84, 86])
+        self.assertEqual(self.chords.targets(), self.played())
+
+    def test_root_chords_are_blue_and_the_fifths_purple(self):
+        leds = self.M.CHORDS_LEDS
+        self.assertEqual(self.led(leds[0]), self.M.KEYS_ROOT)     # I
+        self.assertEqual(self.led(leds[7]), self.M.KEYS_ROOT)     # I, up an octave
+        self.assertEqual(self.led(leds[4]), self.M.KEYS_FIFTH)    # V
+        self.assertEqual(self.led(leds[1]), self.M.KEYS_IN_SCALE)
+
+    def test_preset_3_is_untouched(self):
+        self.assertEqual(self.played(self.M.KEYS_NOTES),
+                         [60, 62, 64, 65, 65, 67, 69, 71, 71, 72, 74, 76, 76, 77, 79, 81])
+        self.assertIn('keys', self.keys.describe())
+        self.assertIn('chords', self.chords.describe())
+
+    def test_the_lit_root_changes_nothing_and_shows_pink(self):
+        before = self.played()
+        self.settings(0)
+        self.assertEqual(self.played(), before)
+        self.assertEqual(self.led(self.M.CHORDS_SETTINGS_LEDS[0]), self.M.KEYS_SETTINGS_CHORDS)
+        self.assertNotIn(self.M.KEYS_SETTINGS_CHORDS,
+                         (self.M.KEYS_SETTINGS_ROOT, self.M.KEYS_SETTINGS_CHROMATIC,
+                          self.M.KEYS_SETTINGS_WHITE, self.M.KEYS_SETTINGS_BLACK,
+                          self.M.KEYS_SETTINGS_SCALE, 0))
+
+    def test_key_and_scale_are_shared_with_preset_3_and_the_octave_is_not(self):
+        self.settings(9)                        # A, on preset 4's page
+        self.settings(self.mod.SCALE_NEXT)      # Minor
+        self.settings(self.mod.OCTAVE_DOWN)
+        self.assertEqual(self.played()[:8], [57, 59, 60, 62, 64, 65, 67, 69])
+        # Preset 3 follows the key and scale through Live, not the octave.
+        self.assertEqual(self.played(self.M.KEYS_NOTES)[:4], [69, 71, 72, 74])
+
+    def test_a_scale_changed_in_live_moves_the_chords(self):
+        self.song.scale_name = 'Dorian'
+        self.song.root_note = 2
+        self.assertEqual(self.played()[:4], [62, 64, 65, 67])
+
+    def test_chord_pads_never_reach_the_script_or_another_button(self):
+        for note in self.M.CHORDS_NOTES:
+            button = self.note_map[note]
+            self.assertTrue(button.suppress_script_forwarding)
+            self.assertEqual(button.channel, self.M.KEYS_CHANNEL)
+
+    def test_the_notes_and_leds_are_free(self):
+        M = self.M
+        notes = (set(M.CHORDS_NOTES) | set(M.CHORDS_SETTINGS_NOTES))
+        leds = (set(M.CHORDS_LEDS) | set(M.CHORDS_SETTINGS_LEDS))
+        self.assertEqual(len(notes), 32)
+        self.assertEqual(len(leds), 32)
+        clips = [n for row in M.CLIPNOTEMAP for n in row]
+        mixer = M.TRACKMUTE + M.TRACKSOLO + M.TRACKREC + M.TRACKSTOP
+        taken_notes = (set(clips) | set(mixer) | set(M.KEYS_NOTES) | set(M.SETTINGS_NOTES)
+                       | {M.PLAY, M.STOP, M.REC, M.TRACKLEFT, M.TRACKRIGHT}
+                       | set(C.PAD_NOTES) | {C.BTN_PLAY, C.BTN_VIEW, C.BTN_MOD,
+                                            C.BTN_LEFT, C.BTN_RIGHT})
+        taken_leds = ({n + M.PAD_LED_OFFSET for n in clips}
+                      | {n + M.MIXER_LED_OFFSET for n in mixer}
+                      | set(M.KEYS_LEDS) | set(M.SETTINGS_LEDS) | set(C.LED_NOTES)
+                      | {M.PLAY, M.STOP, M.REC, M.TRACKLEFT, M.TRACKRIGHT}
+                      | {C.BTN_PLAY, C.BTN_VIEW, C.BTN_MOD, C.BTN_LEFT, C.BTN_RIGHT})
+        self.assertEqual(notes & taken_notes, set())
+        self.assertEqual(leds & taken_leds, set())
+        for pad in range(16):
+            # LED == own note leaves a pad stuck white (make_presets.check).
+            self.assertNotEqual(M.CHORDS_NOTES[pad], M.CHORDS_LEDS[pad])
+            self.assertNotEqual(M.CHORDS_SETTINGS_NOTES[pad], M.CHORDS_SETTINGS_LEDS[pad])
+
+    def test_the_preset_file_matches_the_script(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, 'presets', 'preset4-chords.spc'), 'rb') as f:
+            data = f.read()
+        for first, notes, leds in ((32, self.M.CHORDS_NOTES, self.M.CHORDS_LEDS),
+                                   (48, self.M.CHORDS_SETTINGS_NOTES,
+                                    self.M.CHORDS_SETTINGS_LEDS),
+                                   (112, self.M.CHORDS_SETTINGS_NOTES,
+                                    self.M.CHORDS_SETTINGS_LEDS)):
+            for pad in range(16):
+                record = data[211 + (first + pad) * 26:][:26]
+                self.assertEqual((record[0], record[2], record[8]),
+                                 (0x04, notes[pad], leds[pad]))
+
+    def test_preset_4_has_preset_3s_buttons_and_knobs(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        read = lambda name: open(os.path.join(root, 'presets', name), 'rb').read()
+        keys, chords = read('preset3-keys.spc'), read('preset4-chords.spc')
+        self.assertEqual(keys[:211], chords[:211])      # buttons and encoders
+
+
+class FakeChordParameter(object):
+    def __init__(self, name, value=0.0, minimum=0.0, maximum=1.0):
+        self.name, self.value, self.min, self.max = name, value, minimum, maximum
+
+    def str_for_value(self, value):
+        return str(value)
+
+
+class FakeChordDevice(object):
+    def __init__(self, class_name='MidiChord', on=True):
+        self.class_name = class_name
+        self.parameters = [FakeChordParameter('Device On', 1.0 if on else 0.0)]
+        if class_name == 'MidiChord':
+            # Live 12.4's names, as Log.txt listed them on 2026-10-20.
+            for n in range(1, 7):
+                self.parameters += [FakeChordParameter('Shift%d' % n, 0.0, -36.0, 36.0),
+                                    FakeChordParameter('Shift%d Scale Degrees' % n,
+                                                       0.0, -21.0, 21.0),
+                                    FakeChordParameter('Velocity%d' % n),
+                                    FakeChordParameter('Chance%d' % n)]
+            self.parameters.append(FakeChordParameter('Use Current Scale'))
+
+    def value(self, name):
+        return [p.value for p in self.parameters if p.name == name][0]
+
+
+class FakeChordTrack(object):
+    def __init__(self, arm=True, midi=True):
+        self.arm, self.can_be_armed, self.has_midi_input = arm, True, midi
+        self.current_monitoring_state = 1   # Auto
+        self.devices = [FakeChordDevice('InstrumentVector')]
+        self.inserted = []
+
+    def insert_device(self, name, index):
+        self.inserted.append((name, index))
+        self.devices.insert(index, FakeChordDevice())
+
+
+class FakeSongView(object):
+    def __init__(self):
+        self.listeners = []
+
+    def add_selected_track_listener(self, listener):
+        self.listeners.append(listener)
+
+    def remove_selected_track_listener(self, listener):
+        self.listeners.remove(listener)
+
+
+def _load_chord_devices():
+    import importlib
+    _load_keys_mode()   # sets up the stand-in package
+    return importlib.import_module('pad_keys_pkg.ChordDevices')
+
+
+class ChordDevices(unittest.TestCase):
+    """Preset 4's Chord device on the tracks the pads play: MVave_SMC_PAD/ChordDevices.py."""
+
+    def setUp(self):
+        self.mod = _load_chord_devices()
+        self.M = _load_launcher_map()
+        self.song = FakeScaleSong()
+        self.song.view = FakeSongView()
+        self.armed = FakeChordTrack()
+        self.idle = FakeChordTrack(arm=False)
+        self.audio = FakeChordTrack(midi=False)
+        self.song.tracks = [self.armed, self.idle, self.audio]
+        self.surface = FakeKeysSurface(self.song)
+        self.surface.log_message = lambda text: None
+        self.chords = self.mod.ChordDevices(self.surface)
+
+    def tearDown(self):
+        self.assertEqual(self.surface.logged, [])
+
+    def test_nothing_happens_until_preset_4_is_up(self):
+        self.song.view.listeners[0]()
+        self.assertEqual(self.armed.inserted, [])
+
+    def test_preset_4_adds_a_chord_device_in_key_in_front_of_the_instrument(self):
+        self.chords.set_active(True)
+        self.assertEqual(self.armed.inserted, [(self.M.CHORDS_DEVICE, 0)])
+        chord = self.armed.devices[0]
+        self.assertEqual(chord.value('Use Current Scale'), 1.0)
+        # In scale mode Live plays the Scale Degrees shifts, not the semitones.
+        self.assertEqual([chord.value('Shift%d Scale Degrees' % n) for n in (1, 2, 3)],
+                         [2, 4, 0])
+        self.assertEqual([chord.value('Shift%d' % n) for n in (1, 2)], [0, 0])
+        self.assertEqual(self.idle.inserted, [])
+        self.assertEqual(self.audio.inserted, [])
+
+    def test_another_preset_switches_it_off_and_preset_4_back_on(self):
+        self.chords.set_active(True)
+        chord = self.armed.devices[0]
+        self.chords.set_active(False)
+        self.assertEqual(chord.value('Device On'), 0.0)
+        self.chords.set_active(True)
+        self.assertEqual(len(self.armed.inserted), 1)   # the same one, again
+        self.assertEqual(chord.value('Device On'), 1.0)
+
+    def test_a_chord_device_already_there_keeps_its_shape_and_switch(self):
+        mine = FakeChordDevice()
+        [p for p in mine.parameters if p.name == 'Shift1'][0].value = 3.0   # the user's
+        self.armed.devices.insert(0, mine)
+        self.chords.set_active(True)
+        self.chords.set_active(False)
+        self.assertEqual(self.armed.inserted, [])
+        self.assertEqual(mine.value('Shift1'), 3.0)
+        self.assertEqual(mine.value('Device On'), 1.0)  # it was on: left on
+
+    def test_a_chord_device_that_was_off_is_switched_back_off(self):
+        mine = FakeChordDevice(on=False)
+        self.armed.devices.insert(0, mine)
+        self.chords.set_active(True)
+        self.assertEqual(mine.value('Device On'), 1.0)
+        self.chords.set_active(False)
+        self.assertEqual(mine.value('Device On'), 0.0)
+
+    def test_a_track_armed_later_gets_its_chord_device(self):
+        self.chords.set_active(True)
+        self.idle.arm = True
+        self.song.view.listeners[0]()
+        self.assertEqual(len(self.idle.inserted), 1)
+        self.chords.set_active(False)
+        self.assertEqual(self.idle.devices[0].value('Device On'), 0.0)
+
+    def test_a_chord_without_scale_degrees_is_left_alone(self):
+        def older(name, index):
+            device = FakeChordDevice()
+            device.parameters = [p for p in device.parameters
+                                 if 'Scale' not in p.name]
+            self.armed.devices.insert(index, device)
+        self.armed.insert_device = older
+        self.chords.set_active(True)
+        self.assertIn('Use Current Scale', self.chords.problem)
+        self.assertEqual(self.armed.devices[0].value('Shift1'), 0.0)
+
+    def test_without_insert_device_it_says_to_add_one(self):
+        self.armed.insert_device = None
+        self.chords.set_active(True)
+        self.assertIn('Chord device', self.chords.problem)
+
+    def test_disconnect_removes_the_selected_track_listener(self):
+        self.chords.disconnect()
+        self.assertEqual(self.song.view.listeners, [])
+
+
+class PresetTellsThePadScript(unittest.TestCase):
+
+    class Pad(object):
+        def __init__(self):
+            self.presets = []
+
+        def set_preset(self, preset):
+            self.presets.append(preset)
+
+        def refresh_state(self):
+            pass
+
+        def schedule_message(self, delay, callback, parameter=None):
+            # Live's ControlSurface drops a falsy parameter: model that, so a
+            # preset 0 passed as one fails here as it did in Live.
+            if parameter:
+                callback(parameter)
+            else:
+                callback()
+
+    @staticmethod
+    def with_preset(status, preset):
+        packet = KNOBS_MODULE.unpack7(status[1:-1])
+        packet[KNOBS_MODULE.STATUS_PRESET] = preset
+        packet[26] = ~sum(packet[6:26]) & 0xFF
+        return (0xF0,) + tuple(KNOBS_MODULE.pack7(packet)) + (0xF7,)
+
+    def test_every_switch_says_which_preset_is_up(self):
+        knobs = KNOBS_MODULE.MVave_SMC_KNOBS(FakeCInstance())
+        knobs._startup_pending = False
+        pad = self.Pad()
+        knobs._instances = lambda name: [pad] if name == 'MVave_SMC_PAD' else []
+        P = PresetSwitchRepaint
+        for status in (P.LAUNCHER, P.KEYS, self.with_preset(P.KEYS, 3), P.LAUNCHER):
+            knobs.receive_midi(status)
+        self.assertEqual(pad.presets, [0, 2, 3, 0])
+        self.assertEqual(KNOBS_MODULE.CHORDS_PRESET, _load_launcher_map().CHORDS_PRESET)
+
+    def test_chord_repeats_follow_the_chord_pads(self):
+        knobs = KNOBS_MODULE.MVave_SMC_KNOBS(FakeCInstance())
+        targets = list(range(60, 76))
+        knobs.chords_changed(targets)
+        buttons = knobs._chord_repeat_buttons
+        self.assertEqual([b.original[0] for b in buttons],
+                         list(_load_launcher_map().CHORDS_NOTES))
+        self.assertEqual((buttons[0].identifier, buttons[0].channel), (60, 1))
+        self.assertEqual([b.identifier for b in knobs._repeat_buttons],
+                         list(KNOBS_MODULE.KEYS_REPEAT_NOTES))   # preset 3's untouched
 
 class PassThrough(unittest.TestCase):
     """MVave_SMC_KNOBS passing plain MIDI to the track now that Track is off on
@@ -3913,7 +4244,10 @@ class KnobsStartTheIntro(unittest.TestCase):
         self.knobs._startup_pending = False
 
     def intros(self):
-        return [p for c, p in self.pad.scheduled if c == self.pad.play_intro]
+        # Bound with functools.partial and no parameter: Live's
+        # schedule_message drops a falsy parameter, so False must not be one.
+        return [c.args[0] for c, p in self.pad.scheduled
+                if getattr(c, 'func', None) == self.pad.play_intro and p is None]
 
     def test_preset_1_bank_a_plays_it(self):
         self.knobs.receive_midi(self.S.LAUNCHER)

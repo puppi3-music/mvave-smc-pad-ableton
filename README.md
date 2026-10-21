@@ -1,12 +1,13 @@
 # M-Vave SMC-PAD for Ableton Live
 
-Ableton Live Remote Scripts that give an **M-Vave SMC-PAD** three jobs, one per
+Ableton Live Remote Scripts that give an **M-Vave SMC-PAD** four jobs, one per
 preset on the controller:
 
 1. a Launchpad-style **clip launcher**, with a mixer one button press away;
 2. a Push-style **step sequencer** that edits the selected MIDI clip, with
    velocity-sensitive drum pads one button press away;
-3. a Launchpad-style **scale keyboard** for playing a synth.
+3. a Launchpad-style **scale keyboard** for playing a synth;
+4. a **chord keyboard**: every pad a chord of the key.
 
 On every preset the encoders control the selected device.
 
@@ -42,9 +43,9 @@ else.
 
 ## What you get
 
-### The three presets
+### The four presets
 
-Hold **Shift** and press pad 1, 2 or 3 (bottom row, from the left) to switch.
+Hold **Shift** and press pad 1, 2, 3 or 4 (bottom row, from the left) to switch.
 Nothing in Live changes when you do, because all the scripts stay loaded.
 **PAD BANK** flips the pads to a second layout within the preset.
 
@@ -53,6 +54,7 @@ Nothing in Live changes when you do, because all the scripts stay loaded.
 | 1 | **Clip launcher**: a 4 × 4 session box, each pad lit by its clip's state | **Mixer** for the same four tracks: on/off, solo, arm, stop | `preset1-launcher-mixer.spc` |
 | 2 | **Step sequencer**: 16 steps of one drum in the selected MIDI clip, or 4 drums × 4 steps | **Drum pads**: velocity-sensitive, unlit, laid out like a Drum Rack | `preset2-sequencer-drums.spc` |
 | 3 | **Scale keyboard**: only notes in the current key, or chromatic | **Key, scale and octave** | `preset3-keys.spc` |
+| 4 | **Chords**: each pad a chord of the current key, going up the scale | **Key, scale and octave** for the chords | `preset4-chords.spc` |
 
 The files are in `presets/` and are loaded with MidiSuite, M-Vave's
 editor. When Live opens, it puts the controller on preset 1 and plays a short
@@ -60,15 +62,15 @@ rainbow across the pads.
 
 ### Buttons and knobs
 
-| Control | Presets 1 and 3 | Preset 2 (sequencer) |
+| Control | Presets 1, 3 and 4 | Preset 2 (sequencer) |
 |---|---|---|
 | Play | Live's play | Launch or stop the selected clip. Record + Play starts or stops Live |
 | Stop | Stop Live, on release | Switch between 16 steps and the 4 × 4 overview, on release |
 | Hold Stop + `<` `>` | Move the blue hand to the previous / next device on the track | The same. A Drum Rack's selected drum comes right after the rack |
 | Record | Arrangement record | Held: the pads show the drums. Record + pad picks one. Record + `<` `>`: clip one bar shorter / longer |
 | `<` `>` | Select the previous / next track | Page through the steps |
-| Knob bank 1 | Macros 1–8 of the selected device (preset 3: Live's first parameter bank for it) | Macros 1–8 |
-| Knob bank 2 | Encoders 1–2 move the session box, 3–8 are macros 9–14 (preset 3: Live's second parameter bank) | Macros 9–16 |
+| Knob bank 1 | Macros 1–8 of the selected device (presets 3 and 4: Live's first parameter bank for it) | Macros 1–8 |
+| Knob bank 2 | Encoders 1–2 move the session box, 3–8 are macros 9–14 (presets 3 and 4: Live's second parameter bank) | Macros 9–16 |
 
 Launcher pad colours: green playing · orange stopped · red-pink recording ·
 blue queued to play · light purple queued to record · off empty. On a MIDI
@@ -98,7 +100,23 @@ reach whichever track is armed or set to Monitor In, with its input on **All
 Ins**, on **MIDI channel 2**. A synth listening only on channel 1 won't hear
 them.
 
-**Preset 3's knobs** play the device with Live's blue hand, using Live 12's own
+**Chords.** Preset 4 is preset 3 with chords. Its pads go up the scale one
+note at a time with no repeats (in C major: C, Dm, Em, F / G, Am, B°, C / ...),
+lit like the keyboard. A translated pad can only send one note, so each pad
+sends its chord's root and Live's **Chord** MIDI effect adds the rest. While
+preset 4 is up, the script switches on the Chord device of each track the pads
+play. Where there is none, it adds one in front of the instrument, with **Use
+Current Scale** on and shifts of +2 and +4 scale steps. That gives each chord
+the quality the key makes it. A Chord device already on the track keeps its own
+shifts. On any other preset the ones it switched on go off again, so preset 3
+plays single notes. Adding the device needs `Track.insert_device`, which Live
+12.4 has; without it the status bar asks you to add one. PAD BANK is preset 4's
+own key, scale and octave page. Key and scale are Live's, so presets 3 and 4
+always share them, but each has its own octave. `CHORDS_SHIFTS` in
+`MIDI_Map.py` sets the shape, and `(2, 4, 6)` gives sevenths. Its knobs and
+buttons are preset 3's.
+
+**Preset 3's knobs** (and preset 4's) play the device with Live's blue hand, using Live 12's own
 parameter banks (the table Push uses), so built-in instruments work with no
 mapping. Racks get macros 1–16. Plugins get the parameters their **Configure**
 list holds, in order. The knobs are relative, so switching devices never makes
@@ -114,9 +132,9 @@ three Control Surface slots:
 
 | Script | Port | Runs |
 |---|---|---|
-| `MVave_SMC_PAD` | 3 (the DAW port) | Presets 1 and 3: pads, buttons and lights for the launcher, mixer and keyboard |
+| `MVave_SMC_PAD` | 3 (the DAW port) | Presets 1, 3 and 4: pads, buttons and lights for the launcher, mixer, keyboard and chords, and preset 4's Chord devices |
 | `MVave_SMC_STEPSEQ` | 3 | Preset 2: the step sequencer's pads, buttons and lights |
-| `MVave_SMC_KNOBS` | 1 | The knobs on every preset. It also watches which preset and PAD BANK are up and tells the pad scripts to repaint, puts the controller on preset 1 when Live loads, and passes preset 2's drum pads and note repeat to tracks |
+| `MVave_SMC_KNOBS` | 1 | The knobs on every preset. It also watches which preset and PAD BANK are up and tells the pad scripts to repaint (and the pad script which preset is up, for preset 4's Chord devices), puts the controller on preset 1 when Live loads, and passes preset 2's drum pads and note repeat to tracks |
 
 Port 2 stays out of every slot, with **Remote** on (so Ctrl/Cmd+M mapping still
 works) and **Track** off.
@@ -137,6 +155,7 @@ the keyboard would play notes 85 and up whatever the key. So Track is off, and
 |---|---|
 | Drum pads and their repeats (channel 10 or 1, notes 36–51) | The same notes |
 | Note repeat on the keyboard (channel 10, notes 85–100) | The scale note that pad plays, kept in step with the keyboard |
+| Note repeat on the chords (channel 10, notes 65–80) | That pad's chord root, which the Chord device fills out |
 
 Repeats keep the controller's own velocity, which is low (10–15 measured). Note
 repeat on the launcher, mixer or sequencer pads plays nothing.
@@ -147,7 +166,7 @@ repeat on the launcher, mixer or sequencer pads plays nothing.
 
 In short:
 
-1. Load the three files in `presets/` into presets 1–3 with
+1. Load the four files in `presets/` into presets 1–4 with
    MidiSuite.
 2. Copy `MVave_SMC_PAD/`, `MVave_SMC_KNOBS/` and `MVave_SMC_STEPSEQ/` into
    Live's Remote Scripts folder.
@@ -158,18 +177,18 @@ Full steps, port names for Windows and macOS, verification and troubleshooting
 are in **[docs/INSTALL.md](docs/INSTALL.md)**.
 
 > **The presets matter as much as the scripts.** The scripts expect the note,
-> CC and LED numbers those three files set up, with every encoder relative. A
+> CC and LED numbers those four files set up, with every encoder relative. A
 > factory-configured unit sends different numbers and will appear to do
 > nothing. If your pads launch the clip three pads along, the controller holds
 > a preset built before 8 October 2026: import the current files again.
 
-The presets are generated: `tools/make_presets.py` builds all three from the
+The presets are generated: `tools/make_presets.py` builds all four from the
 launcher and sequencer sources in `reference/`.
 
 ## Layout
 
 ```
-├── MVave_SMC_PAD/        presets 1 and 3: pads, buttons, LEDs, keyboard   (copy into Live)
+├── MVave_SMC_PAD/        presets 1, 3, 4: pads, buttons, LEDs, keyboards  (copy into Live)
 ├── MVave_SMC_KNOBS/      encoders, preset detection, MIDI pass-through    (copy into Live)
 ├── MVave_SMC_STEPSEQ/    preset 2: the step sequencer                     (copy into Live)
 ├── docs/
@@ -215,16 +234,23 @@ controller it adapts easily: see [PROBE.md](docs/PROBE.md).
 ## Status
 
 In daily use on macOS with Live 12.3. Built, and first verified, on Windows
-with Live 11.3. The keyboard and preset 3's knobs are built on two Live 12
-features, the song's Scale setting and Live's parameter-bank table. Without
-them the knobs fall back to plain parameter order and the keyboard to its own
-key and scale. That fallback has not been tried on Live 11.
+with Live 11.3. The keyboards and the knobs on presets 3 and 4 are built on two
+Live 12 features, the song's Scale setting and Live's parameter-bank table.
+Without them the knobs fall back to plain parameter order and the keyboards to
+their own key and scale. That fallback has not been tried on Live 11. Preset
+4's chords also need Live 12's Chord device with Use Current Scale; the script
+adds it itself on Live 12.4 (`Track.insert_device`).
 
 **Not yet confirmed on hardware**, documented rather than hidden:
 
 - In the sequencer, added 2026-10-20: changing the clip length with Record +
   `<` `>`, skipping empty banks of a Drum Rack, drum colours in the picker, and
   the Stop and arrow LEDs ([STEPSEQ.md](docs/STEPSEQ.md) §1).
+- Preset 4, added 2026-10-20. Seen in Live: its lights, the preset switch (its
+  status byte reads 3) and the Chord device being added. Not yet heard: the
+  chords themselves, since the first version set the Chord device's semitone
+  shifts instead of its scale-degree ones. `Log.txt` lists every parameter of
+  a Chord device the script adds (`SMC-PAD chords: added Chord`).
 - Several `_Framework` behaviours that could not be checked outside Live are
   marked as such in the code and in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 

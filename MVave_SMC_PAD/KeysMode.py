@@ -1,4 +1,6 @@
 # Preset 3's keyboard: Launchpad-style Note mode on the SMC-PAD's lit pads.
+# Preset 4's chords are a second instance (chords=True) on their own notes and
+# LEDs, playing each chord's root for ChordDevices' Chord device to fill out.
 #
 # Bank A's pads are translated, not handled: each pad's note is rewritten to a
 # scale note on the way in (InputControlElement.set_identifier + a midi map
@@ -9,8 +11,8 @@
 # Both banks are lit all the time, whatever preset is showing: their LED
 # numbers (MIDI_Map.py) belong to no other layout, so painting them while
 # another preset is up changes nothing you can see.
-from .KeysLayout import (SCALES, NOTE_NAMES, BLACK_KEYS, pad_note, degree,
-                         note_name, scale_index)
+from .KeysLayout import (SCALES, NOTE_NAMES, BLACK_KEYS, pad_note, chord_note,
+                         degree, note_name, scale_index)
 from .MIDI_Map import *
 
 OCTAVE_DOWN, OCTAVE_UP, SCALE_PREV, SCALE_NEXT = 12, 13, 14, 15
@@ -18,16 +20,23 @@ OCTAVE_DOWN, OCTAVE_UP, SCALE_PREV, SCALE_NEXT = 12, 13, 14, 15
 
 class KeysMode(object):
 
-    def __init__(self, surface, note_map):
+    def __init__(self, surface, note_map, chords=False):
         self._surface = surface
-        self._keys = [note_map[note] for note in KEYS_NOTES]
-        self._settings = [note_map[note] for note in SETTINGS_NOTES]
+        self._chords = chords
+        if chords:
+            notes, settings = CHORDS_NOTES, CHORDS_SETTINGS_NOTES
+            self._key_leds, self._settings_leds = CHORDS_LEDS, CHORDS_SETTINGS_LEDS
+        else:
+            notes, settings = KEYS_NOTES, SETTINGS_NOTES
+            self._key_leds, self._settings_leds = KEYS_LEDS, SETTINGS_LEDS
+        self._keys = [note_map[note] for note in notes]
+        self._settings = [note_map[note] for note in settings]
         self._listeners = []
         self._song_listeners = []
         self._leds = {}
         self._root = KEYS_ROOT_NOTE
-        self._octave = KEYS_OCTAVE
-        self._chromatic = KEYS_CHROMATIC
+        self._octave = CHORDS_OCTAVE if chords else KEYS_OCTAVE
+        self._chromatic = KEYS_CHROMATIC and not chords
         self._flash = None      # the scale pad flickering, if any
         self._flash_phase = 0   # even: white, odd: green
         self._flash_count = 0   # which flicker a scheduled tick belongs to
@@ -135,8 +144,9 @@ class KeysMode(object):
 
     def _settings_pressed(self, index):
         if index < 12 and index == self._root:
-            # The lit root again: switch between in key and chromatic.
-            self._chromatic = not self._chromatic
+            # The lit root again: switch between in key and chromatic. The
+            # chords have the one layout.
+            self._chromatic = not self._chromatic and not self._chords
         elif index < 12:
             self._root = index
             self._write_live(root=index)
@@ -181,6 +191,8 @@ class KeysMode(object):
             self._surface._log_exception('keys: flash')
 
     def _note(self, index):
+        if self._chords:
+            return chord_note(index, self._root, self._octave, self._intervals)
         return pad_note(index, self._root, self._octave, self._intervals, self._chromatic)
 
     def describe(self):
@@ -188,6 +200,8 @@ class KeysMode(object):
         span = ''
         if low is not None and high is not None:
             span = ', %s to %s' % (note_name(low), note_name(high))
+        if self._chords:
+            return 'SMC-PAD chords: %s %s%s' % (NOTE_NAMES[self._root], self._scale_name, span)
         layout = 'chromatic' if self._chromatic else 'in key'
         return 'SMC-PAD keys: %s %s, %s%s' % (NOTE_NAMES[self._root], self._scale_name,
                                               layout, span)
@@ -214,7 +228,8 @@ class KeysMode(object):
         self.repaint(force=False)
 
     def targets(self):
-        """The note each keyboard pad plays, PAD1 first; None off the range."""
+        """The note each pad plays (preset 4: each chord's root), PAD1 first;
+        None off the range."""
         return [self._note(index) for index in range(16)]
 
     def _push_to_knobs(self):
@@ -227,9 +242,10 @@ class KeysMode(object):
         except Exception:
             return
         targets = self.targets()
+        name = 'chords_changed' if self._chords else 'keys_changed'
         for knobs in instances:
             try:
-                knobs.keys_changed(targets)
+                getattr(knobs, name)(targets)
             except Exception:
                 self._surface._log_exception('keys: tell the knobs script')
 
@@ -246,6 +262,8 @@ class KeysMode(object):
         if index < 12:
             if index == self._root:
                 # Its colour shows the layout pressing it again leaves.
+                if self._chords:
+                    return KEYS_SETTINGS_CHORDS
                 return KEYS_SETTINGS_CHROMATIC if self._chromatic else KEYS_SETTINGS_ROOT
             return KEYS_SETTINGS_BLACK if index in BLACK_KEYS else KEYS_SETTINGS_WHITE
         # Each octave pad shows the octave it moves to.
@@ -265,8 +283,8 @@ class KeysMode(object):
         if force:
             self._leds = {}
         for index in range(16):
-            for leds, colour in ((KEYS_LEDS, self._key_colour(index)),
-                                 (SETTINGS_LEDS, self._settings_colour(index))):
+            for leds, colour in ((self._key_leds, self._key_colour(index)),
+                                 (self._settings_leds, self._settings_colour(index))):
                 led = leds[index]
                 if self._leds.get(led) != colour:
                     self._leds[led] = colour

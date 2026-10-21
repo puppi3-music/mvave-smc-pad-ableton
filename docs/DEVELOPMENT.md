@@ -171,7 +171,7 @@ So there are three packages in three Control Surface slots:
 
 | Script | Input | Output | Owns |
 |---|---|---|---|
-| `MVave_SMC_PAD` | port 3 | port 3 | presets 1 and 3: pads, buttons and LEDs for the launcher, mixer and keyboard |
+| `MVave_SMC_PAD` | port 3 | port 3 | presets 1, 3 and 4: pads, buttons and LEDs for the launcher, mixer, keyboard and chords; preset 4's Chord devices |
 | `MVave_SMC_STEPSEQ` | port 3 | port 3 | preset 2: the sequencer's pads, buttons and LEDs ([STEPSEQ.md](STEPSEQ.md)) |
 | `MVave_SMC_KNOBS` | port 1 | port 1 | the encoders on every preset, preset/bank/velocity polling, preset 1 at startup, plain-MIDI pass-through |
 | — | port 2, unassigned | | Remote on for Live's own MIDI mapping; Track off |
@@ -180,7 +180,9 @@ So there are three packages in three Control Surface slots:
 notes or light the same LED numbers, so the pad preset switch is the mode
 switch. Since Track is off on port 2, `MVave_SMC_KNOBS` also passes plain MIDI
 (preset 2's drum pads, note repeat) to the armed track, and plays the selected
-device's parameter banks with preset 3's knobs.
+device's parameter banks with preset 3's and 4's knobs. It also tells
+`MVave_SMC_PAD` which preset is up (`set_preset`), which switches preset 4's
+Chord devices on and off.
 
 Two properties of Live's port handling shape this table:
 
@@ -290,8 +292,9 @@ Two limitations of the current implementation, both visible in the code:
 | `__init__.py` | `create_instance()`. Three lines. |
 | `MVave_SMC_PAD.py` | The `ControlSurface` subclass. All wiring lives here. |
 | `MIDI_Map.py` | Every note number, CC number, grid size and colour index. The only file most users need to edit. |
-| `KeysMode.py` | Preset 3's Launchpad-style keyboard. Bank A's pads (`KEYS_NOTES`) are translated to scale notes with `set_identifier`/`set_channel` and `suppress_script_forwarding`, then a midi map rebuild, so Live hands them to the armed track. They go out on `KEYS_CHANNEL` (MIDI channel 2) because Live looks a translated note up in the script's own map: on the script's channel, a scale note of 55 pressed the mixer's solo button; bank B's pads (`SETTINGS_NOTES`) set root, scale and octave, and pressing the current root toggles the in-key and chromatic layouts, and the root pad lights `KEYS_SETTINGS_CHROMATIC` (white-blue) instead of `KEYS_SETTINGS_ROOT` while chromatic; each octave pad lights in the `KEYS_OCTAVE_COLOURS` entry (one palette index per octave from `KEYS_OCTAVE_MIN`) of the octave it moves to; a scale pad press that lands on Major flickers that pad between `KEYS_SCALE_FLASH` (white) and its green `KEYS_SCALE_FLASH_TIMES` times, `KEYS_SCALE_FLASH_TICKS` display ticks per step (`_start_flash`, then `_flash_tick` rescheduling itself by `schedule_message`; a counter makes a tick that a later press or `disconnect()` has overtaken paint nothing). Follows and writes Live 12's song scale (`root_note`, `scale_name`, `scale_intervals`). Repainted from `refresh_state()`, which `MVave_SMC_KNOBS` calls on every preset or PAD BANK switch. Pushes its note table (`targets()`) to `MVave_SMC_KNOBS.keys_changed()`, because note repeat arrives on the knobs script's port (HARDWARE.md 5.7). |
-| `KeysLayout.py` | The keyboard's pure layout functions and scale table, importable without `_Framework` for the self-test. |
+| `KeysMode.py` | Preset 3's Launchpad-style keyboard. Bank A's pads (`KEYS_NOTES`) are translated to scale notes with `set_identifier`/`set_channel` and `suppress_script_forwarding`, then a midi map rebuild, so Live hands them to the armed track. They go out on `KEYS_CHANNEL` (MIDI channel 2) because Live looks a translated note up in the script's own map: on the script's channel, a scale note of 55 pressed the mixer's solo button; bank B's pads (`SETTINGS_NOTES`) set root, scale and octave, and pressing the current root toggles the in-key and chromatic layouts, and the root pad lights `KEYS_SETTINGS_CHROMATIC` (white-blue) instead of `KEYS_SETTINGS_ROOT` while chromatic; each octave pad lights in the `KEYS_OCTAVE_COLOURS` entry (one palette index per octave from `KEYS_OCTAVE_MIN`) of the octave it moves to; a scale pad press that lands on Major flickers that pad between `KEYS_SCALE_FLASH` (white) and its green `KEYS_SCALE_FLASH_TIMES` times, `KEYS_SCALE_FLASH_TICKS` display ticks per step (`_start_flash`, then `_flash_tick` rescheduling itself by `schedule_message`; a counter makes a tick that a later press or `disconnect()` has overtaken paint nothing). Follows and writes Live 12's song scale (`root_note`, `scale_name`, `scale_intervals`). Repainted from `refresh_state()`, which `MVave_SMC_KNOBS` calls on every preset or PAD BANK switch. Pushes its note table (`targets()`) to `MVave_SMC_KNOBS.keys_changed()`, because note repeat arrives on the knobs script's port (HARDWARE.md 5.7). A second instance, `KeysMode(surface, note_map, chords=True)`, is preset 4: the same code on `CHORDS_NOTES`/`CHORDS_LEDS` and `CHORDS_SETTINGS_NOTES`/`CHORDS_SETTINGS_LEDS`, laid out by `chord_note()`, with its own octave (`CHORDS_OCTAVE`), no chromatic layout (its lit root lights `KEYS_SETTINGS_CHORDS` and pressing it changes nothing), and its table pushed to `chords_changed()`. Both instances follow and write Live's scale, so they share key and scale. |
+| `KeysLayout.py` | The keyboard's pure layout functions and scale table, importable without `_Framework` for the self-test. `chord_note()` is preset 4's layout: one scale note per pad, no repeats. |
+| `ChordDevices.py` | Preset 4's Chord devices. A translation is one note to one note, so preset 4's pads (a second `KeysMode`, `chords=True`, on `CHORDS_NOTES`/`CHORDS_SETTINGS_NOTES` with its own octave) play each chord's root, and Live's Chord MIDI effect adds the rest. `set_active()`, from `MVave_SMC_PAD.set_preset()`, which `MVave_SMC_KNOBS` calls on every status change: while preset 4 is up, `sync()` switches on the `MidiChord` device of each MIDI track that is armed or monitoring In, or adds one at index 0 with `Track.insert_device(CHORDS_DEVICE, 0)` and `_set_up()` turns on Use Current Scale and sets Shift1 Scale Degrees, Shift2 Scale Degrees, ... to `CHORDS_SHIFTS`, logging every parameter to Log.txt. Live 12.4's Chord has two shifts per voice (seen in that log, 2026-10-20): `ShiftN` in semitones and `ShiftN Scale Degrees`, and in scale mode it plays only the second. The first version set the semitone ones and played single notes. A Chord with no scale mode is left alone, since scale steps mean nothing in semitones. On any other preset it switches off the devices in `_switched_on`. A selected-track listener re-syncs, because selecting a track arms it. A device already there keeps its shifts and, if it was on, stays on. |
 | `DeviceNav.py` | Stop + arrows device walk; pure functions. |
 | `StartupIntro.py` | The startup intro: `INTRO_RAINBOW` (18 palette indices in hue order, picked on the device from the HARDWARE.md 3.2.1 survey; the pads cannot blend, so its length is its smoothness) runs diagonally across the clip grid's LEDs from PAD1 for `INTRO_RAINBOW_TICKS`, each colour lasting `INTRO_COLOUR_TICKS`, then PAD1 flashes `INTRO_FLASH_COLOUR` for `INTRO_FLASH_TICKS`, then `refresh_state()` gives the grid back. `frame()` is pure. `CLIPNOTEMAP`'s first row is the top one (PAD1, bottom-left, sends note 13), so `grid_leds()` counts rows from the last. It is played once: `MVave_SMC_KNOBS` schedules `play_intro(show)` with its first status after the startup write, and `show` is False on any layout but preset 1 bank A. `MVave_SMC_PAD` falls back to playing it after `INTRO_FALLBACK_TICKS`. Ticks follow the KeysMode flash idiom (`schedule_message` and a counter). `refresh_state()` repaints the current frame over the clip colours while it plays. |
 | `SpecialSessionComponent.py` | `SessionComponent` + combination-mode linking + "fire the highlighted slot" button. Its scenes build `NewClipSlotComponent`s (via `scene_component_type` / `clip_slot_component_type`), whose `_do_launch_clip` override turns a press on an empty slot of a MIDI track, armed or not, into a `create_clip()` of `NEW_CLIP_BARS` bars (converted to beats), selects the slot and opens the clip view: a double-click, not an open-ended recording that grows under the step sequencer. The release is swallowed so it never reaches the new clip. Audio tracks fall through to the framework (record if armed, else stop). |
@@ -409,20 +412,22 @@ The class has these responsibilities:
    `_target_device` at the newly selected track's device.
 3. `build_midi_map()` / `receive_midi()` / `_navigate()` / `_macro()` — forward and
    intercept every knob CC, decoding the relative encoding by hand and writing
-   `device.parameters[n]` directly. Preset 3's CCs 21–36 go to Live 12's
+   `device.parameters[n]` directly. Presets 3 and 4's CCs 21–36 go to Live 12's
    parameter-bank table instead (`BANK_DEFINITIONS`, from `ableton.v3`), or to
    parameter order when that table can't be imported.
 4. `_pad_session()` / `_bank()` / `_probe_value()` — move the other script's session box.
 5. The state read (HARDWARE.md 3.6) — poll the controller for its preset,
    PAD BANK and VELOCITY setting; on a change, schedule `refresh_state()` on the
-   two pad scripts and pass the velocity to the sequencer. `LAYOUTS_BY_NOTE` /
+   two pad scripts, schedule `set_preset()` on `MVave_SMC_PAD` (preset 4's
+   Chord devices) and pass the velocity to the sequencer. `LAYOUTS_BY_NOTE` /
    `LAYOUTS_BY_CC` let a note or CC that belongs to another layout trigger an
    immediate read.
 6. The startup write — put the controller on `STARTUP_PRESET` / `STARTUP_BANK`,
    then tell `MVave_SMC_PAD` whether to play its intro.
 7. `_setup_pass_through()` — translate the plain-MIDI drum pads and note
-   repeat onto MIDI channel 2 for the track, following the keyboard's note table
-   (`keys_changed()`, pushed from `KeysMode`).
+   repeat onto MIDI channel 2 for the track, following the keyboards' note
+   tables (`keys_changed()` and `chords_changed()`, pushed from the two
+   `KeysMode`s).
 
 **`_probe_value()` reads the session's getters defensively:**
 
@@ -760,6 +765,7 @@ Current assignments:
 | `TRACKLEFT`, `TRACKRIGHT` | 20, 21 | select previous / next track; with Stop held, previous / next device (`DeviceNav.py`) |
 | `TRACKMUTE`, `TRACKSOLO`, `TRACKREC`, `TRACKSTOP` | 49–64 | preset 1's PAD BANK mixer, four tracks × four rows; LEDs at note + `MIXER_LED_OFFSET` |
 | `KEYS_*`, `SETTINGS_*` | notes 85–100, 22–37 | preset 3's keyboard and its key/scale pads |
+| `CHORDS_NOTES`, `CHORDS_SETTINGS_NOTES` | notes 65–80; 38–48, 81–84, 122 | preset 4's chords and its key/scale pads; LEDs 101–116 and 22–32, 65–68, 123, the last free on port 3 |
 | `SESSIONLEFT/RIGHT/UP/DOWN` | −1 | session box banking — handled by the encoders instead |
 | `CLIP_*` | 5, 15, 14, 21, 24 | pad colours, see above |
 | `PARAMCONTROL` | CC 1–8 | pad-script device params; inert, the DAW port sends no CCs |
@@ -769,6 +775,18 @@ To move a control, change the number. To remove one, set it to `-1`. To resize t
 grid, change `TSB_X`/`TSB_Y` **and** `CLIPNOTEMAP` together — but read
 [Known rough edges](#known-rough-edges) first, because the current code assumes
 `TSB_X == TSB_Y`.
+
+### 5. `schedule_message` drops a falsy parameter
+
+`ControlSurface.schedule_message(delay, callback, parameter)` calls
+`callback(parameter)` only when the parameter is truthy, and `callback()`
+otherwise. So 0 and False never arrive. Seen 2026-10-20: `set_preset(0)` for
+preset 1 raised `missing 1 required positional argument`, and the intro's
+`False` ("don't play, the grid isn't showing") reached `play_intro` as its
+default, `True`. `MVave_SMC_KNOBS` now schedules a `functools.partial` with the
+value bound and no parameter. The self-test checks both calls arrive that way
+(`KnobsStartTheIntro`, `PresetTellsThePadScript`, whose fake drops a falsy
+parameter as Live does).
 
 ### Re-enabling the modifier button
 
@@ -980,6 +998,18 @@ diagnostics quoted are the exact strings to grep for if a future Live disagrees.
   `_dispatch` claims, so under Live's forward-only routing the latch has nothing
   it *can* report. Use `tools/mvave_probe.py --listen` for "what is this thing
   actually sending".)
+
+### Verified in Live 12.4.6 (macOS), 2026-10-20
+
+- **Preset 4 reads 3** in the status reply's preset byte: its Chord device was
+  added on preset 4, which only happens on 3.
+- **`Track.insert_device('Chord', 0)` works** and puts the device in front of
+  the instrument.
+- **Live 12.4's Chord has two shifts per voice**, as `Log.txt` listed them:
+  `Shift1`–`Shift6` in semitones (`+2 st`) and `Shift1 Scale Degrees`–`Shift6
+  Scale Degrees` (`0 sd`), plus `Velocity`, `Chance`, `Strum`, `Strum Tension`,
+  `Strum Crescendo` and `Use Current Scale`. With Use Current Scale on, only the
+  Scale Degrees shifts play. Not yet heard: chords from the fixed set-up.
 
 ### Not verified
 

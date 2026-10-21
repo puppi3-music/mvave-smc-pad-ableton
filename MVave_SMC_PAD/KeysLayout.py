@@ -54,6 +54,16 @@ def pad_note(index, root, octave, intervals, chromatic=False):
     return note if 0 <= note <= 127 else None
 
 
+def chord_note(index, root, octave, intervals):
+    """Preset 4: the root of pad index 0-15's chord, or None outside 0-127.
+    One scale note per pad with no repeats, so on a 7-note scale the bottom
+    row is I-IV, the next V-vii and I an octave up, and so on. Live's Chord
+    device on the track stacks the rest of the chord on top."""
+    count = len(intervals)
+    note = bottom_note(root, octave) + 12 * (index // count) + intervals[index % count]
+    return note if 0 <= note <= 127 else None
+
+
 def degree(note, root, intervals):
     """'root', 'fifth' or 'scale' for a note of the scale, None for one
     outside it. The fifth is 7 semitones up, so a scale without a perfect

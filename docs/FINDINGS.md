@@ -54,7 +54,7 @@ and a build was nearly started. The actual test took about ten minutes.
 that one first. Not the easiest thing to test, not the thing you are most curious
 about — the load-bearing one.
 
-## Eight wrong turns
+## Nine wrong turns
 
 **1. Assuming MCU numbering because the port is called "DAW".** The device
 presents three MIDI ports and the manufacturer's setup guide says to point Mackie
@@ -120,6 +120,15 @@ same place M-Vave's own export keeps it. *A structure that explains the file
 does not tell you what the firmware does with it; and a measurement that
 disagrees with the vendor's own export deserves a second look before you build
 on it.*
+
+**9. A name that matched, on the wrong control.** Preset 4's chords come from
+Live's Chord device in scale mode. Its parameter names were read out of Live's
+binary before anything ran: `Use Current Scale` and `Shift1`–`Shift6`. The
+script set `Shift1` and `Shift2` to 2 and 4 and played single notes. Live's own
+log of the device's parameters then showed a second set, `Shift1 Scale
+Degrees` and so on, which is what scale mode plays; the plain shifts are
+semitones. *A name found in a binary says that a thing exists, not that it is
+the one doing the job; log what the object really has the first time it runs.*
 
 A smaller one from the same week: the pad record's byte 8 mirrored the note on
 every lit record, so it was written off as a checksum-like tail. It is the

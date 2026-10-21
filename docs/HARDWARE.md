@@ -406,7 +406,9 @@ from M-Vave's editor protocol, read out of MidiSuite 1.x (`CUSBConnect`,
   `SMC-PAD-Private` only (the other two ports don't answer).
 - The reply is the 33-byte status above. Unpacked: bytes 0-5 are
   `00 59 23 14 00 00`, 6-13 echo the type, address and count, 14-25 are the
-  12 state bytes, 26 the checksum. **Byte 24 is the preset (0-2), byte 25 the
+  12 state bytes, 26 the checksum. **Byte 24 is the preset (0-2 for presets
+  1-3; 3 for preset 4, reached with Shift + pad 4: seen in Live 2026-10-20, when
+  the script acting on 3 ran on preset 4), byte 25 the
   PAD BANK bank (0-1). Byte 22 is the VELOCITY setting (0-3 for Shift + Pad
   9-12)** (measured 2026-10-20: it stepped 00, 01, 02, 03 as the four were
   selected, the moment each was pressed). That is why it read `01` on 2026-10-08
@@ -426,8 +428,9 @@ it away; SHIFT and PAD BANK send nothing (6.1), so nothing earlier can. A switch
 repaints the moment you touch a pad or knob, or within ~0.2 s if you don't. For
 ~4 s after a switch it asks every tick (`SWITCH_FAST_TICKS`), so quick PAD BANK
 flips show at once.
-Only the transport and arrow buttons (notes 17–21) can't tell preset 1 from 3. When the preset or bank changes, it schedules
-`refresh_state()` on `MVave_SMC_PAD` and `MVave_SMC_STEPSEQ`, a few ticks apart.
+Only the transport and arrow buttons (notes 17–21) can't tell presets 1, 3 and 4 apart. When the preset or bank changes, it schedules
+`refresh_state()` on `MVave_SMC_PAD` and `MVave_SMC_STEPSEQ`, a few ticks apart,
+and tells `MVave_SMC_PAD` the preset, which switches preset 4's Chord devices.
 The script that owns the new layout goes last. It also stops these messages
 being logged as "unknown sysex". Without the output there is no read, so it
 depends on the controller sending the status unprompted, which the captures
@@ -710,6 +713,8 @@ Three field notes:
   | preset 2, steps | 101–116 | 69–84 |
   | preset 3, keyboard | 85–100 | 1–16 |
   | preset 3, key and scale | 22–37 | 49–64 |
+  | preset 4, chords | 65–80 | 101–116 |
+  | preset 4, key and scale | 38–48, 81–84, 122 | 22–32, 65–68, 123 |
 
 - **`chan?` is a Hypothesis, not an observation.** Byte 3 is `0x00` in all
   256 records, so these files cannot distinguish "channel, 0-based" from

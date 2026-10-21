@@ -275,6 +275,50 @@ KEYS_SCALE_FLASH = 40       # white
 KEYS_SCALE_FLASH_TIMES = 3
 KEYS_SCALE_FLASH_TICKS = 1  # ~0.1 s, so three flickers take ~0.6 s
 
+# Chords (preset 4)
+# -----------------
+# Preset 4 is preset 3 with chords: the same buttons and knobs, and the same
+# KeysMode code, but each pad plays a whole chord of the key. Its pads go up
+# the scale one note at a time with no repeats, so in C major:
+#
+#   Am   B°   C    Dm     <- top
+#   Dm   Em   F    G
+#   G    Am   B°   C
+#   C    Dm   Em   F      <- bottom
+#
+# A translated pad can only become one note, so each pad plays its chord's
+# root and Live's Chord MIDI effect on the track adds the rest, counting in
+# steps of Live's scale (its Use Current Scale switch). That gives every pad
+# the chord the key makes on it. While preset 4 is up, the script switches on
+# the Chord device of each track the pads play (armed, or monitoring In), and
+# adds one in front of the instrument where there is none (Track.insert_device,
+# which Live 12.4 has; without it the status bar asks for one). On any other
+# preset it switches off the ones it switched on, so preset 3 plays single
+# notes again. MVave_SMC_KNOBS says which preset is up (set_preset).
+#
+# PAD BANK is preset 4's own key, scale and octave page, laid out like preset
+# 3's. Key and scale are Live's, so the two presets always share them; the
+# octave is each preset's own. Pressing the lit root changes nothing here:
+# preset 4 has the one layout.
+#
+# Notes and LEDs are the last ones free on this port (preset 3's comment above
+# lists the taken ones), so the settings page is in three runs.
+CHORDS_NOTES = tuple(range(65, 81))
+CHORDS_LEDS = tuple(range(101, 117))
+CHORDS_SETTINGS_NOTES = tuple(range(38, 49)) + tuple(range(81, 85)) + (122,)
+CHORDS_SETTINGS_LEDS = tuple(range(22, 33)) + tuple(range(65, 69)) + (123,)
+CHORDS_PRESET = 3           # preset 4, counted from 0 as the controller does
+CHORDS_OCTAVE = 3           # bottom-left chord's root octave, like KEYS_OCTAVE
+KEYS_SETTINGS_CHORDS = 56   # pink: the selected root on preset 4's page
+CHORDS_DEVICE = 'Chord'     # the device preset 4 adds; '' never adds or
+                            # switches devices (bring your own)
+# What a Chord device the script adds stacks on each root, in scale steps
+# (Shift1 Scale Degrees, Shift2 Scale Degrees, ...: in scale mode Live plays
+# these, not the semitone Shift1, Shift2): 2 and 4 are the third and fifth, a
+# triad. (2, 4, 6)
+# makes sevenths. A Chord device already on the track keeps its own shifts.
+CHORDS_SHIFTS = (2, 4)
+
 # Track Control
 MASTERSEL = -1      # Master track select
 SELTRACKREC = -1    # Arm Selected Track

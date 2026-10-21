@@ -20,6 +20,7 @@ from .SpecialZoomingComponent import SpecialZoomingComponent
 from .SpecialViewControllerComponent import DetailViewControllerComponent
 from .DeviceNav import device_list, step, track_list
 from .KeysMode import KeysMode
+from .ChordDevices import ChordDevices
 from .StartupIntro import StartupIntro
 from .MIDI_Map import *
 
@@ -105,6 +106,8 @@ class MVave_SMC_PAD(ControlSurface):
             self._stop_combo = False
             self._nav_listeners = []
             self._keys_mode = None
+            self._chords_mode = None
+            self._chord_devices = None
             self._setup_session_control()
             self._setup_mixer_control()
             self._session.set_mixer(self._mixer)
@@ -135,9 +138,10 @@ class MVave_SMC_PAD(ControlSurface):
         for button, listener in self._nav_listeners:
             button.remove_value_listener(listener)
         self._nav_listeners = []
-        if self._keys_mode is not None:
-            self._keys_mode.disconnect()
-            self._keys_mode = None
+        for mode in (self._keys_mode, self._chords_mode, self._chord_devices):
+            if mode is not None:
+                mode.disconnect()
+        self._keys_mode = self._chords_mode = self._chord_devices = None
         self._note_map = None
         self._ctrl_map = None
         self._pads = None
@@ -341,24 +345,44 @@ class MVave_SMC_PAD(ControlSurface):
         # transport.set_song_position_control(self._ctrl_map[SONGPOSITION]) #still not implemented as of Live 8.1.6
 
     def _setup_keys(self):
-        # Preset 3's keyboard. Guarded so a fault in it -- a Live without the
-        # song scale API, say -- costs the keyboard, not the clip launcher.
+        # Preset 3's keyboard and preset 4's chords. Guarded so a fault in
+        # either -- a Live without the song scale API, say -- costs that
+        # preset, not the clip launcher.
         try:
             self._keys_mode = KeysMode(self, self._note_map)
         except Exception:
             self._keys_mode = None
             self._log_exception('keyboard setup')
+        try:
+            self._chords_mode = KeysMode(self, self._note_map, chords=True)
+            self._chord_devices = ChordDevices(self)
+        except Exception:
+            self._chords_mode = self._chord_devices = None
+            self._log_exception('chords setup')
+
+    def set_preset(self, preset):
+        """Called by MVave_SMC_KNOBS with the preset now up, counted from 0:
+        preset 4's Chord devices are on only while it is."""
+        if self._chord_devices is None:
+            return
+        try:
+            self._chord_devices.set_active(preset == CHORDS_PRESET)
+            if preset == CHORDS_PRESET and self._chord_devices.problem:
+                self.show_message('SMC-PAD chords: ' + self._chord_devices.problem)
+        except Exception:
+            self._log_exception('chords: preset')
 
     def refresh_state(self):
         # Called on a preset or PAD BANK switch (via MVave_SMC_KNOBS) as well
         # as by Live. The device shows a layout's LEDs only while it is up, so
         # the keyboard's must be resent every time, not just when they change.
         ControlSurface.refresh_state(self)
-        if self._keys_mode is not None:
-            try:
-                self._keys_mode.repaint()
-            except Exception:
-                self._log_exception('keyboard repaint')
+        for mode in (self._keys_mode, self._chords_mode):
+            if mode is not None:
+                try:
+                    mode.repaint()
+                except Exception:
+                    self._log_exception('keyboard repaint')
         # The clip colours just went out; the intro, while it runs, goes on top.
         try:
             self._intro.repaint()

@@ -4,9 +4,9 @@ Three Remote Scripts, one per job:
 
 | Script | Runs |
 |---|---|
-| `MVave_SMC_PAD` | Presets 1 and 3: the clip launcher, its mixer and the scale keyboard. Pads, buttons and pad lights |
+| `MVave_SMC_PAD` | Presets 1, 3 and 4: the clip launcher, its mixer, the scale keyboard and the chords. Pads, buttons and pad lights |
 | `MVave_SMC_STEPSEQ` | Preset 2: the step sequencer. Pads, buttons and pad lights |
-| `MVave_SMC_KNOBS` | The knobs on every preset. It also tells the other two to repaint when you switch preset, puts the controller on preset 1 when Live loads, and passes preset 2's drum pads and note repeat to your tracks |
+| `MVave_SMC_KNOBS` | The knobs on every preset. It also tells the other two to repaint when you switch preset (and `MVave_SMC_PAD` which preset is up, for preset 4's Chord devices), puts the controller on preset 1 when Live loads, and passes preset 2's drum pads and note repeat to your tracks |
 
 They are separate because a Remote Script gets exactly one MIDI input port,
 and the controller sends its lit pads and its encoders on different ports.
@@ -37,7 +37,7 @@ Once it's installed, the user guide ([online](https://puppi3-music.github.io/mva
 
 | | |
 |---|---|
-| Ableton Live | Live 11 or 12. In daily use on **Live 12.3 (macOS)**; first verified on Live 11.3.43 (Windows), see DEVELOPMENT.md §"Verified on hardware". The step sequencer needs Live 11+ (`get_notes_extended`). The keyboard follows Live 12's Scale setting, and preset 3's knobs use Live 12's parameter banks. |
+| Ableton Live | Live 11 or 12. In daily use on **Live 12.3 (macOS)**; first verified on Live 11.3.43 (Windows), see DEVELOPMENT.md §"Verified on hardware". The step sequencer needs Live 11+ (`get_notes_extended`). The keyboard follows Live 12's Scale setting, and preset 3's knobs use Live 12's parameter banks. Preset 4 needs Live 12's Chord device with Use Current Scale, and adds it to the track itself on Live 12.4 (`Track.insert_device`). |
 | Hardware | M-Vave SMC-PAD, connected by USB. |
 | Editor | **MidiSuite**, M-Vave's editor, from [m-vave.com/appdownload](https://www.m-vave.com/appdownload) (Windows, macOS, iOS, Android). It is the only way to write presets to the controller. |
 | OS | Windows or macOS. |
@@ -54,7 +54,7 @@ tested against a particular version of it.
 
 ## 1. Load the presets onto the controller
 
-The scripts expect the note, CC and LED numbers these three files set up. **A
+The scripts expect the note, CC and LED numbers these four files set up. **A
 factory-configured unit sends different numbers, and the scripts will appear
 to do nothing.**
 
@@ -66,8 +66,9 @@ preset slot:
 | `preset1-launcher-mixer.spc` | Preset 1 | Clip launcher; PAD BANK → mixer |
 | `preset2-sequencer-drums.spc` | Preset 2 | Step sequencer; PAD BANK → drum pads |
 | `preset3-keys.spc` | Preset 3 | Scale keyboard and device knobs; PAD BANK → key and scale |
+| `preset4-chords.spc` | Preset 4 | Chords and device knobs; PAD BANK → key and scale |
 
-On the controller, **Shift + pad 1, 2 or 3** (bottom row, from the left) loads
+On the controller, **Shift + pad 1, 2, 3 or 4** (bottom row, from the left) loads
 that preset. **PAD BANK** is a different thing: it flips between the two pad
 layouts *within* a preset. The five buttons belong to the preset, not to the
 pad layout, so they keep the same job when you press PAD BANK.
@@ -78,7 +79,7 @@ Load only from `presets/`. The files in `reference/` are the sources
 **Check it took** before going near Live, if you have the probe set up: run
 `--listen` (see [Finding out what your unit sends](#finding-out-what-your-unit-sends))
 and press the pads. Preset 1 sends notes 1–16, preset 2 notes 101–116, preset 3
-notes 85–100. A factory unit sends none of these.
+notes 85–100, preset 4 notes 65–80. A factory unit sends none of these.
 
 ### What the scripts expect the controller to send
 
@@ -95,6 +96,8 @@ A pad whose LED number equals its note shows white when it should be off
 | 2 · drums | notes 36–51, plain MIDI on ports 1 and 2, velocity-sensitive | unlit | |
 | 3 · keyboard | notes 85–100, port 3 | LEDs 1–16 | notes 17–21 |
 | 3 · key and scale | notes 22–37, port 3 | LEDs 49–64 | |
+| 4 · chords | notes 65–80, port 3 | LEDs 101–116 | notes 17–21 |
+| 4 · key and scale | notes 38–48, 81–84 and 122, port 3 | LEDs 22–32, 65–68 and 123 | |
 
 Pads read left to right, top to bottom: the top-left pad sends the first note
 of the range. Press is note-on velocity 127, release is note-on velocity 0.
@@ -107,8 +110,8 @@ relative**, centred on 64: 63 is one step back, 65 one step forward.
 | Presets 1, 2 · knob bank 1 | 7 | 8 | 5 | 6 | 3 | 4 | 1 | 2 |
 | Preset 1 · knob bank 2 | 17 | 18 | 13 | 14 | 11 | 12 | 9 | 10 |
 | Preset 2 · knob bank 2 | 15 | 16 | 13 | 14 | 11 | 12 | 9 | 10 |
-| Preset 3 · knob bank 1 | 27 | 28 | 25 | 26 | 23 | 24 | 21 | 22 |
-| Preset 3 · knob bank 2 | 35 | 36 | 33 | 34 | 31 | 32 | 29 | 30 |
+| Presets 3, 4 · knob bank 1 | 27 | 28 | 25 | 26 | 23 | 24 | 21 | 22 |
+| Presets 3, 4 · knob bank 2 | 35 | 36 | 33 | 34 | 31 | 32 | 29 | 30 |
 
 The CC numbers don't follow the printed encoder numbers. That is how this unit
 was configured, and it has moved once already, so re-measure with the probe's
@@ -247,7 +250,8 @@ of every Control Surface slot, and:
   still works;
 - leave **Track off**. Preset 2's drum pads and note repeat reach your tracks
   through `MVave_SMC_KNOBS` instead. With Track on they would play twice, and
-  note repeat on the keyboard would play the pads' raw notes, ignoring the key.
+  note repeat on the keyboard or the chords would play the pads' raw notes,
+  ignoring the key.
 
 **Why this port matters.** A Control Surface takes its port away from Ctrl+M:
 Live turns off Track, Sync and Remote for a port as soon as a script claims
@@ -296,10 +300,16 @@ MVave_SMC_KNOBS: first preset 3 knob CC -- 21 value 65 -> slot 1
 | `device -> …` | The macro knobs have a device to control | **Only once the selected track changes.** Click a track before deciding the macros are broken |
 | `first nav CC` | MIDI is reaching the knob script | The first time you turn encoder 1 or 2 on preset 1's knob bank 2. Logged once only |
 | `first macro CC` | A macro knob reaches the script and resolves to a macro | The first turn of any macro knob. Logged once only |
-| `first preset 3 knob CC` | Preset 3's knobs reach the script | The first turn of a knob on preset 3. Logged once only |
+| `first preset 3 knob CC` | Preset 3's (or 4's) knobs reach the script | The first turn of a knob on preset 3 or 4. Logged once only |
 
 `MVave_SMC_PAD` prints nothing on a clean load. Its only log lines are
-warnings, so check it by behaviour.
+warnings, so check it by behaviour, with one exception: the first time preset 4
+adds a Chord device to a track, it logs `SMC-PAD chords: added Chord, parameters
+…`, every parameter with its value. If preset 4's chords sound wrong, look
+there: `Use Current Scale` should be on and `Shift1 Scale Degrees` and `Shift2
+Scale Degrees` at 2 and 4. (The plain `Shift1`, `Shift2` are semitones, which
+Live ignores while Use Current Scale is on.) A Chord device the script added
+before 2026-10-20's fix has 0 there: delete it and switch to preset 4 again.
 
 Lines that mean something went wrong:
 
@@ -340,7 +350,7 @@ in the launcher, no sound). These are the setup problems.
 
 If every pad fires the clip three pads along and the last pads stay white, the
 controller holds a preset built before 8 October 2026, which put the pads in
-the wrong place in the file. Import all three files from `presets/`
+the wrong place in the file. Import all the files from `presets/`
 again.
 
 A pad that shows white when it should be off means its LED number equals its
@@ -357,6 +367,23 @@ don't:
   preset is up. Set the output to the same port as its input.
 - **`MVave_SMC_KNOBS` isn't loaded, or its input isn't the first port.** Check
   for its `loaded.` line in `Log.txt`.
+
+### Preset 4 plays single notes
+
+The chords come from Live's Chord device on the track; the pads only send each
+chord's root. While preset 4 is up there should be a Chord device in front of
+the synth, switched on, with **Use Current Scale** on.
+
+- **No Chord device appears.** Check the track is armed or set to Monitor In,
+  and that `MVave_SMC_KNOBS` has its output set: it tells `MVave_SMC_PAD`
+  which preset is up. On a Live without `Track.insert_device` the status bar
+  asks you to add the device yourself.
+- **It's there but adds nothing.** Check `Shift1 Scale Degrees` and `Shift2
+  Scale Degrees` (2 and 4 for triads). In scale mode Live ignores the plain
+  semitone `Shift1`, `Shift2`. The script leaves a Chord device it didn't add
+  as it is, so delete it and switch to preset 4 again to get one set up.
+- **Nothing changed after copying new scripts.** Live reads Remote Scripts only
+  when it starts: quit and reopen it.
 
 ### The macro knobs do nothing, or move the wrong macro
 
@@ -439,11 +466,12 @@ Everything the pad script maps lives in this one file. `-1` means unassigned.
 |---|---|
 | `CLIPNOTEMAP` | The 4 × 4 grid of pad notes, row by row from the top. Change these to match what your pads send. |
 | `TSB_X`, `TSB_Y` | Session box width and height. Must match `CLIPNOTEMAP`'s size. Keep them equal: see DEVELOPMENT.md, "Known rough edges". |
-| `PAD_LED_OFFSET` | A pad lights at its note plus this (32, so notes 1–16 light LEDs 33–48). Must match the preset. `MIXER_LED_OFFSET`, `KEYS_LEDS` and `SETTINGS_LEDS` do the same for the mixer and the keyboard's two layouts. |
+| `PAD_LED_OFFSET` | A pad lights at its note plus this (32, so notes 1–16 light LEDs 33–48). Must match the preset. `MIXER_LED_OFFSET`, `KEYS_LEDS`, `SETTINGS_LEDS` and the `CHORDS_*_LEDS` do the same for the mixer and the keyboards' layouts. |
 | `PLAY`, `STOP`, `REC` | Transport button notes (17, 18, 19). `STOP` is handled by the script, so it can double as the device-navigation modifier, and stops Live on release. |
 | `TRACKLEFT`, `TRACKRIGHT` | Arrow button notes (20, 21): previous / next track, or previous / next device while `STOP` is held (`DeviceNav.py`). |
 | `TRACKMUTE`, `TRACKSOLO`, `TRACKREC`, `TRACKSTOP` | The mixer's four rows on PAD BANK (notes 49–64). |
 | `KEYS_*`, `SETTINGS_*` | The keyboard: its notes, MIDI channel, colours and the key/scale pads. |
+| `CHORDS_*` | Preset 4: its notes and LEDs, its octave, the Chord device it adds (`CHORDS_DEVICE`, `''` to manage none) and that device's shape (`CHORDS_SHIFTS`, scale steps above the root: `(2, 4)` triads, `(2, 4, 6)` sevenths). |
 | `BUTTONCHANNEL`, `SLIDERCHANNEL` | MIDI channel, 0-based: `0` is channel 1. |
 | `MESSAGETYPE` | `0` for notes, `1` for CCs. |
 | `NEW_CLIP_BARS` | Length in bars of the empty clip a pad makes on an empty slot of a MIDI track, like double-clicking the slot (`1`). `0` restores the old press: record if armed, else stop the track. |
@@ -483,7 +511,7 @@ The settings are constants at the top of the file:
   `device.parameters[N]`; index 0 is the device on/off switch, so there is no
   offset. Write it in **encoder order**, not numeric CC order, or the macros
   scatter across the panel.
-- `PARAM_BY_CC`: the same for preset 3's CCs 21–36, mapped to slots in Live's
+- `PARAM_BY_CC`: the same for presets 3 and 4's CCs 21–36, mapped to slots in Live's
   parameter banks.
 - `CC_TRACK = 17`, `CC_SCENE = 18`: the session-box encoders (preset 1, knob
   bank 2, encoders 1 and 2). They must differ.

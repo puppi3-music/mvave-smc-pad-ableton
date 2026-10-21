@@ -37,6 +37,7 @@
 from __future__ import with_statement
 
 import traceback
+from functools import partial
 
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
@@ -219,8 +220,9 @@ def device_parameter_slots(device):
 # is head, command (0x23 = flash read, request and reply), a 3-byte length,
 # the payload and a checksum (the inverted byte sum of the payload). The read
 # is type 4, address 0, 12 bytes; in the reply's unpacked packet, byte 24 is
-# the preset (0-2) and byte 25 the PAD BANK bank (0-1). Measured for presets
-# 1-3, both banks of preset 1 and 2 (2026-10-08 and 2026-10-20).
+# the preset (0-3 for presets 1-4) and byte 25 the PAD BANK
+# bank (0-1). Measured for presets 1-3, both banks of preset 1 and 2
+# (2026-10-08 and 2026-10-20).
 #
 # Byte 22 is the VELOCITY setting, 0-3 for Shift + pad 9-12 (measured
 # 2026-10-20). A change is passed to the sequencer, which writes its steps at
@@ -234,6 +236,9 @@ STATUS_PRESET = 24
 STATUS_BANK = 25
 LAUNCHER_PRESET = 0                     # preset 1
 SEQUENCER_PRESET = 1                    # preset 2
+# Preset 4 reads 3: seen in Live 2026-10-20, when preset 4 added its Chord
+# device, which happens only on 3.
+CHORDS_PRESET = 3                       # preset 4
 # Every packet from the device starts F0 00 32: the head 00 59, packed. The
 # byte after it carries command bits, so the status (0D) and the OK a write
 # gets back (01, "00 59 00 01 00 00 00 FF") differ there.
@@ -276,13 +281,17 @@ LAYOUTS_BY_NOTE = _layout_table((
     (117, 121, ((1, None),)),           # sequencer buttons, both banks
     (85, 100, ((2, 0),)),               # keyboard
     (22, 37, ((2, 1),)),                # key / scale bank
-    (17, 21, ((0, None), (2, None))),   # launcher buttons, presets 1 and 3
+    (65, 80, ((3, 0),)),                # chords
+    (38, 48, ((3, 1),)),                # chords' key / scale bank, in three runs
+    (81, 84, ((3, 1),)),
+    (122, 122, ((3, 1),)),
+    (17, 21, ((0, None), (2, None), (3, None))),    # launcher buttons, presets 1, 3, 4
 ))
 LAYOUTS_BY_CC = _layout_table((
     (1, 14, ((0, None), (1, None))),    # macros
     (15, 16, ((1, None),)),             # the sequencer's last two macros
     (17, 18, ((0, None),)),             # session box
-    (PARAM_CC_FIRST, PARAM_CC_FIRST + BANK_SIZE * PARAM_BANKS - 1, ((2, None),)),
+    (PARAM_CC_FIRST, PARAM_CC_FIRST + BANK_SIZE * PARAM_BANKS - 1, ((2, None), (3, None))),
 ))
 
 
@@ -362,6 +371,8 @@ REPAINT_DELAYS = (1, 2)
 #
 #   preset 3 note repeat   ch 10, KEYS_REPEAT_NOTES -> the scale note that pad
 #                          plays (MVave_SMC_PAD's KeysMode pushes the table)
+#   preset 4 note repeat   ch 10, CHORDS_REPEAT_NOTES -> that pad's chord root,
+#                          which the track's Chord device fills out
 #   preset 2 drum pads     ch 10 (and ch 1), DRUM_NOTES -> same notes
 #
 # (Preset 3's knobs used to pass through here as synth CCs; they now play the
@@ -373,6 +384,7 @@ REPAINT_DELAYS = (1, 2)
 PASS_CHANNEL = 1                        # MIDI channel 2, as MVave_SMC_PAD's KEYS_CHANNEL
 REPEAT_CHANNEL = 9                      # MIDI channel 10
 KEYS_REPEAT_NOTES = tuple(range(85, 101))   # == MVave_SMC_PAD KEYS_NOTES
+CHORDS_REPEAT_NOTES = tuple(range(65, 81))  # == MVave_SMC_PAD CHORDS_NOTES
 DRUM_NOTES = tuple(range(36, 52))           # tools/make_presets.py drum_pad
 DRUM_CHANNELS = (REPEAT_CHANNEL, 0)
 
@@ -407,6 +419,7 @@ class MVave_SMC_KNOBS(ControlSurface):
         self._device = None
         self._target_device = None
         self._repeat_buttons = []
+        self._chord_repeat_buttons = []
         with self.component_guard():
             self._setup_device_control()
             self._setup_pass_through()
@@ -425,6 +438,7 @@ class MVave_SMC_KNOBS(ControlSurface):
         if self in MVave_SMC_KNOBS._active_instances:
             MVave_SMC_KNOBS._active_instances.remove(self)
         self._repeat_buttons = []
+        self._chord_repeat_buttons = []
         ControlSurface.disconnect(self)
 
     # ----------------------------------------------------------- pass-through
@@ -441,30 +455,41 @@ class MVave_SMC_KNOBS(ControlSurface):
         for channel in DRUM_CHANNELS:
             for note in DRUM_NOTES:
                 passed(ButtonElement(True, MIDI_NOTE_TYPE, channel, note))
-        for note in KEYS_REPEAT_NOTES:
-            button = ButtonElement(True, MIDI_NOTE_TYPE, REPEAT_CHANNEL, note)
-            # Untranslated until the keyboard says what each pad plays, and
-            # forwarding suppressed, so until then a repeat goes nowhere.
-            button.suppress_script_forwarding = True
-            self._repeat_buttons.append(button)
+        for notes, buttons in ((KEYS_REPEAT_NOTES, self._repeat_buttons),
+                               (CHORDS_REPEAT_NOTES, self._chord_repeat_buttons)):
+            for note in notes:
+                button = ButtonElement(True, MIDI_NOTE_TYPE, REPEAT_CHANNEL, note)
+                # Untranslated until the keyboard says what each pad plays, and
+                # forwarding suppressed, so until then a repeat goes nowhere.
+                button.suppress_script_forwarding = True
+                buttons.append(button)
 
     def _pull_keys(self):
         # The pad script may have loaded first; if not, it pushes when it does.
         # Its absence is _pad_session's to report, not this.
         for pad in self._instances('MVave_SMC_PAD'):
-            keys = getattr(pad, '_keys_mode', None)
-            if keys is None:
-                continue
-            try:
-                self.keys_changed(keys.targets())
-            except Exception:
-                self._log_exception('read keyboard notes')
+            for name, changed in (('_keys_mode', self.keys_changed),
+                                  ('_chords_mode', self.chords_changed)):
+                keys = getattr(pad, name, None)
+                if keys is None:
+                    continue
+                try:
+                    changed(keys.targets())
+                except Exception:
+                    self._log_exception('read keyboard notes')
 
     def keys_changed(self, targets):
         """The note each of preset 3's 16 keyboard pads plays (None = none),
         PAD1 first. Called by MVave_SMC_PAD whenever key, scale, octave or
         layout changes, so note repeat plays what the pad plays."""
-        for button, note in zip(self._repeat_buttons, targets):
+        self._retarget(self._repeat_buttons, targets)
+
+    def chords_changed(self, targets):
+        """keys_changed for preset 4: each chord pad's root."""
+        self._retarget(self._chord_repeat_buttons, targets)
+
+    def _retarget(self, buttons, targets):
+        for button, note in zip(buttons, targets):
             if note is None:
                 button.use_default_message()
             else:
@@ -771,18 +796,27 @@ class MVave_SMC_KNOBS(ControlSurface):
             # The startup light show (MVave_SMC_PAD/StartupIntro.py) plays
             # on the clip grid, so only if that is what the pads show now.
             # Scheduled, like the repaints below, to run in the pad script's
-            # own context. The flag is never None, so it is passed on.
+            # own context. Bound with partial: schedule_message drops a
+            # falsy parameter and calls with none, so False would have reached
+            # play_intro as its default, True (and preset 0, below, as no
+            # argument at all: seen in Log.txt 2026-10-20).
             for script in pad:
                 play_intro = getattr(script, 'play_intro', None)
                 if play_intro is not None:
-                    script.schedule_message(1, play_intro,
-                                            preset == LAUNCHER_PRESET and not bank)
+                    script.schedule_message(1, partial(
+                        play_intro, preset == LAUNCHER_PRESET and not bank))
         # The sequencer keeps its clip while another preset is up, so the
         # selection can move around on preset 3 without losing the pattern.
         for script in seq:
             set_on_screen = getattr(script, 'set_on_screen', None)
             if set_on_screen is not None:
                 set_on_screen(preset == SEQUENCER_PRESET)
+        # Preset 4's Chord devices are on only while it is up. Scheduled: it
+        # may add a device, which belongs in the pad script's own context.
+        for script in pad:
+            set_preset = getattr(script, 'set_preset', None)
+            if set_preset is not None:
+                script.schedule_message(1, partial(set_preset, preset))
         order = pad + seq if on_sequencer else seq + pad
         for delay, script in zip(REPAINT_DELAYS, order):
             # Scheduled on the other script, so the repaint runs in its own

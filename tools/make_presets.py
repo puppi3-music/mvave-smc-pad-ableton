@@ -3,18 +3,21 @@
 
     python3 tools/make_presets.py
 
-Reads two sources from reference/ and writes three files to presets/:
+Reads two sources from reference/ and writes four files to presets/:
 
   preset1-launcher-mixer.spc    preset 1: PAD BANK flips clips <-> mixer
   preset2-sequencer-drums.spc   preset 2: PAD BANK flips steps <-> drum pads
   preset3-keys.spc              preset 3: keyboard + device knobs, PAD BANK -> key/scale
+  preset4-chords.spc            preset 4: chords + device knobs, PAD BANK -> key/scale
 
 Presets 1 and 3 start from smc-pad-launcher-led33.spc, so buttons are the
 launcher's (transport, track select) and MVave_SMC_PAD keeps working on
 preset 3 without a second script; it also plays preset 3's lit keyboard
 (KEYS_NOTES) and reads its key/scale bank (SETTINGS_NOTES). Preset 3's encoders are rewritten to send
 CCs 21-36 (PARAM_CCS_BANK_*), which MVave_SMC_KNOBS plays onto the selected
-device's parameter banks, instead of the launcher's macro CCs. Preset 2
+device's parameter banks, instead of the launcher's macro CCs. Preset 4 is
+built the same way as preset 3, on its own notes and LEDs (CHORDS_NOTES and
+CHORDS_SETTINGS_NOTES), with the same knobs. Preset 2
 starts from smc-pad-sequencer-led69.spc and only its bank B changes, so the
 sequencer's buttons and encoders stay put while the pads play drums. Its
 buttons also get LED numbers (see light_buttons), so the sequencer can light
@@ -76,6 +79,14 @@ KEYS_PAD1 = 85                  # notes 85-100, LEDs 1-16
 KEYS_LED_OFFSET = -84
 SETTINGS_PAD1 = 22              # notes 22-37, LEDs 49-64
 SETTINGS_LED_OFFSET = 27
+
+# Chords: must match CHORDS_NOTES/CHORDS_LEDS and CHORDS_SETTINGS_NOTES/
+# CHORDS_SETTINGS_LEDS in MVave_SMC_PAD/MIDI_Map.py, PAD1 first. The last notes
+# and LEDs free on port 3, so the settings page is in three runs.
+CHORDS_NOTES = tuple(range(65, 81))
+CHORDS_LEDS = tuple(range(101, 117))
+CHORDS_SETTINGS_NOTES = tuple(range(38, 49)) + tuple(range(81, 85)) + (122,)
+CHORDS_SETTINGS_LEDS = tuple(range(22, 33)) + tuple(range(65, 69)) + (123,)
 
 # Preset 3's encoders: relative, like every other preset's, on their own CCs
 # 21-36, which MVave_SMC_KNOBS turns into the selected device's parameter banks
@@ -169,6 +180,14 @@ def settings_pad(pad):
     return mcp_record(note, note + SETTINGS_LED_OFFSET)
 
 
+def chord_pad(pad):
+    return mcp_record(CHORDS_NOTES[pad - 1], CHORDS_LEDS[pad - 1])
+
+
+def chord_settings_pad(pad):
+    return mcp_record(CHORDS_SETTINGS_NOTES[pad - 1], CHORDS_SETTINGS_LEDS[pad - 1])
+
+
 def check(data):
     # Only the two reachable banks.
     assert len(data) == FILE_SIZE
@@ -199,4 +218,6 @@ if __name__ == '__main__':
     build('preset2-sequencer-drums.spc', SEQUENCER, None, drum_pad,
           button_leds=True)
     build('preset3-keys.spc', LAUNCHER, key_pad, settings_pad,
+          (PARAM_CCS_BANK_1, PARAM_CCS_BANK_2))
+    build('preset4-chords.spc', LAUNCHER, chord_pad, chord_settings_pad,
           (PARAM_CCS_BANK_1, PARAM_CCS_BANK_2))

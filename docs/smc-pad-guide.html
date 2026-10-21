@@ -297,6 +297,7 @@
       <li><a href="#mixer">Mixer</a></li>
       <li><a href="#sequencer">Step sequencer</a></li>
       <li><a href="#keys">Keyboard</a></li>
+      <li><a href="#chords">Chords</a></li>
       <li><a href="#drums">Drum pads</a></li>
       <li><a href="#setup">Setup</a></li>
       <li><a href="#trouble">If something's off</a></li>
@@ -308,7 +309,7 @@
   <header>
     <span class="eyebrow">M-Vave SMC-PAD × Ableton Live 12</span>
     <h1>Using your SMC-PAD with Live</h1>
-    <p class="lede">The controller has three presets: one for launching clips, one for programming drum patterns, and one for playing a synth with the pads as a keyboard. Preset 1 also has a mixer one button press away.</p>
+    <p class="lede">The controller has four presets: one for launching clips, one for programming drum patterns, one for playing a synth with the pads as a keyboard, and one for playing it in chords. Preset 1 also has a mixer one button press away.</p>
     <p><strong>First time?</strong> Do the one-off <a href="#setup">Setup</a> at the bottom of this page, then follow <a href="#flows">Example sessions</a> from the top. They take you from an empty Live set to a recorded jam.</p>
     <figure class="photo">
       <img src="smc-pad.jpg" width="920" height="606" alt="The M-Vave SMC-PAD from above: eight knobs in two columns on the left, a four-by-four grid of sixteen pads in the middle, and a column of ten buttons on the right.">
@@ -322,6 +323,7 @@
       <a href="#mixer">Mixer</a>
       <a href="#sequencer">Step sequencer</a>
       <a href="#keys">Keyboard</a>
+      <a href="#chords">Chords</a>
       <a href="#drums">Drum pads</a>
       <a href="#setup">Setup</a>
       <a href="#trouble">If something's off</a>
@@ -396,7 +398,7 @@
           <li><span>Switch to <strong>preset 3</strong> and press <kbd>PAD BANK</kbd> to pick a key. For A minor: press <strong>A</strong> (second row from the top, second pad), then <strong>Scale ‹</strong> or <strong>Scale ›</strong> until Live's status bar names Minor. Live's own Scale setting changes to match. Press <kbd>PAD BANK</kbd> to play.
             <span class="see">blue pads on the root notes (A), purple on the fifths (E), white on every other note in the scale. Every pad is in key, so nothing you hit sounds wrong.</span></span></li>
           <li><span><strong>For a bassline</strong>, press <kbd>PAD BANK</kbd>, then <strong>Oct −</strong> once or twice (it shows turquoise, then light blue, then bright blue: the octave it will take you to next), and <kbd>PAD BANK</kbd> again. Start on the bottom-left root and move between it and the purple fifth.</span></li>
-          <li><span><strong>For chords</strong>, use this shape: any pad in the left two columns, the pad two to its right, and the pad diagonally up and to the right of where you started. On a 7-note scale that's always a triad in key. From the bottom-left root it's the root chord, with the purple fifth on top.
+          <li><span><strong>For chords</strong>, use this shape: any pad in the left two columns, the pad two to its right, and the pad diagonally up and to the right of where you started. On a 7-note scale that's always a triad in key. From the bottom-left root it's the root chord, with the purple fifth on top. Or switch to <a href="#chords">preset 4</a>, where one pad plays the whole chord.
             <span class="with-mini"><span class="mini" aria-label="Chord shape: bottom-left, bottom third, second row second"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="p"></span><span></span><span></span><span class="r"></span><span></span><span class="w"></span><span></span></span><span class="see">from C in C major: C3, E3, G3.</span></span></span></li>
           <li><span><strong>Shape the sound.</strong> Click the synth so it has Live's blue hand. The knobs now control its main parameters, the same ones Push shows, with no mapping. Knob bank 2 has the next eight. See <a href="#keys-the-knobs">The knobs</a>.</span></li>
           <li><span><strong>Record it into a clip:</strong>
@@ -449,7 +451,7 @@
           <tr><td>Make an empty MIDI clip</td><td>Preset 1, press an empty pad in the track's column. Live makes a 1-bar clip and opens it, like double-clicking the slot</td></tr>
           <tr><td>Mute, solo or arm a track</td><td>Preset 1, <kbd>PAD BANK</kbd>: top row mutes, second solos, third arms</td></tr>
           <tr><td>See other tracks or rows on the pads</td><td>Preset 1, knob bank 2, the bottom two knobs</td></tr>
-          <tr><td>Pick a track</td><td><kbd>&lt;</kbd> <kbd>&gt;</kbd> (presets 1 and 3)</td></tr>
+          <tr><td>Pick a track</td><td><kbd>&lt;</kbd> <kbd>&gt;</kbd> (presets 1, 3 and 4)</td></tr>
           <tr><td>Tweak a device</td><td>Knob bank 1 turns the selected track's macros. Hold <kbd>Stop</kbd> + <kbd>&lt;</kbd> <kbd>&gt;</kbd> for the next device</td></tr>
           <tr><td>Program drums step by step</td><td>Preset 2, with a MIDI clip selected</td></tr>
           <tr><td>Play or stop the pattern</td><td>Preset 2, press <kbd>Play</kbd>. Hold <kbd>Record</kbd> + <kbd>Play</kbd> to stop everything</td></tr>
@@ -459,7 +461,8 @@
           <tr><td>Play melodies or chords in key</td><td>Preset 3, with the track armed</td></tr>
           <tr><td>Change key, scale or octave</td><td>Preset 3, <kbd>PAD BANK</kbd></td></tr>
           <tr><td>Play notes outside the scale</td><td>Preset 3, <kbd>PAD BANK</kbd>, press the blue key</td></tr>
-          <tr><td>Record into the Arrangement</td><td><kbd>Record</kbd> (presets 1 and 3)</td></tr>
+          <tr><td>Play a whole chord with one pad</td><td>Preset 4, with the track armed</td></tr>
+          <tr><td>Record into the Arrangement</td><td><kbd>Record</kbd> (presets 1, 3 and 4)</td></tr>
           <tr><td>Undo</td><td><kbd>Cmd</kbd>+<kbd>Z</kbd> in Live</td></tr>
         </tbody>
       </table>
@@ -483,13 +486,13 @@
   <!-- SWITCHING -->
   <section id="switch">
     <div class="section-head">
-      <span class="eyebrow">The three presets</span>
+      <span class="eyebrow">The four presets</span>
       <h2>Switching modes</h2>
     </div>
-    <p>Hold <kbd>Shift</kbd> and press pad 1, 2 or 3 (the bottom row, from the left) for preset 1, 2 or 3. The scripts stay loaded in Live the whole time, so you don't change anything in Live when you switch.</p>
+    <p>Hold <kbd>Shift</kbd> and press pad 1, 2, 3 or 4 (the bottom row, from the left) for preset 1, 2, 3 or 4. The scripts stay loaded in Live the whole time, so you don't change anything in Live when you switch.</p>
     <p>When Live opens, it puts the controller on preset 1 (the clip launcher) with <kbd>PAD BANK</kbd> off, whatever it was left on. That needs <code>MVave_SMC_KNOBS</code> with its output set; see <a href="#setup-ports">Setup</a>.</p>
     <p>Then the pads say hello: a rainbow runs diagonally across them from pad 1 (bottom-left) to the top-right corner for about 3 seconds, then pad 1 flashes white for about 2 seconds to show you're on preset 1. After that your clips' colours come back. The pads work as normal the whole time. <kbd>Shift</kbd> doesn't light up: there's no known way for the computer to light it. To turn the intro off, set <code>INTRO_ENABLED = False</code> in <code>MVave_SMC_PAD/MIDI_Map.py</code>. <code>INTRO_COLOUR_TICKS</code> in the same file sets how fast the colours move: 1 (the fastest that still shows every colour) or 2 for half speed.</p>
-    <p>Within a preset, <kbd>PAD BANK</kbd> flips the pads between two layouts. The second layout is the <a href="#mixer">mixer</a> on preset 1, <a href="#drums">drum pads</a> on preset 2 and the <a href="#keys-changing-key-scale-and-octave">key and scale settings</a> on preset 3.</p>
+    <p>Within a preset, <kbd>PAD BANK</kbd> flips the pads between two layouts. The second layout is the <a href="#mixer">mixer</a> on preset 1, <a href="#drums">drum pads</a> on preset 2, and the <a href="#keys-changing-key-scale-and-octave">key and scale settings</a> on presets 3 and 4.</p>
     <div class="modes">
       <a class="mode" href="#launcher">
         <span class="slot">Preset 1</span>
@@ -505,6 +508,11 @@
         <span class="slot">Preset 3</span>
         <strong>Keyboard</strong>
         <span>Play a synth in any key and scale, Launchpad-style, with the knobs on the instrument's main controls.</span>
+      </a>
+      <a class="mode" href="#chords">
+        <span class="slot">Preset 4</span>
+        <strong>Chords</strong>
+        <span>The same, but every pad plays a whole chord of the key.</span>
       </a>
     </div>
   </section>
@@ -826,6 +834,46 @@
     </div>
   </section>
 
+  <!-- CHORDS -->
+  <section id="chords">
+    <div class="section-head">
+      <span class="eyebrow">Preset 4</span>
+      <h2>Chords</h2>
+    </div>
+    <p>Preset 4 is the <a href="#keys">keyboard</a> in chords: every pad plays a whole chord of the key you choose. The pads go up the scale one note at a time, starting from the key at bottom-left, and each one plays the chord the key builds on that note, so in a major key you get major, minor and diminished chords in the right places and nothing sounds wrong. The colours are the keyboard's: blue for the root chord, purple for the chord on the fifth, white for the rest. The buttons and knobs work as on preset 3.</p>
+
+    <div class="split">
+      <figure class="device" style="margin:0" aria-label="The chords each pad plays in C major">
+        <div class="device-caption"><span>Chords</span><span>C major</span></div>
+        <div class="grid">
+          <div class="pad white">Am</div><div class="pad white">B°</div><div class="pad blue">C</div><div class="pad white">Dm</div>
+          <div class="pad white">Dm</div><div class="pad white">Em</div><div class="pad white">F</div><div class="pad purple">G</div>
+          <div class="pad purple">G</div><div class="pad white">Am</div><div class="pad white">B°</div><div class="pad blue">C</div>
+          <div class="pad blue">C</div><div class="pad white">Dm</div><div class="pad white">Em</div><div class="pad white">F</div>
+        </div>
+        <div class="device-caption"><span>Blue: root chord · purple: fifth</span><span>Each row higher</span></div>
+      </figure>
+      <div class="explain">
+        <p>In C major the bottom row is C, Dm, Em and F; the next row G, Am, B° and C an octave up; and the top two rows carry on higher. Try the bottom-left C, then F, then G, then Am for a classic progression.</p>
+        <p>It follows the key and scale like the keyboard, and they're shared with preset 3: change the key on either preset, or in Live, and both follow.</p>
+      </div>
+    </div>
+
+    <h3 id="chords-playing">Playing</h3>
+    <ol class="steps">
+      <li><span>Put a synth on a MIDI track and <strong>arm</strong> it, or set its Monitor to <strong>In</strong>, as for the <a href="#keys-playing">keyboard</a>.</span></li>
+      <li><span>Switch the controller to <strong>preset 4</strong> with <kbd>Shift</kbd> + pad 4. Within a moment Live's <strong>Chord</strong> device appears at the front of the track (or switches on, if the track already has one).</span></li>
+      <li><span>Play. Each pad is a chord. Switch to another preset and the Chord device turns off again, so preset 3 plays single notes.</span></li>
+    </ol>
+
+    <h3 id="chords-settings">Key, scale and octave</h3>
+    <p>Press <kbd>PAD BANK</kbd>. It's the same page as on <a href="#keys-changing-key-scale-and-octave">preset 3</a>: the bottom three rows choose the key, and the top row moves the chords down or up an octave and steps through the scales. The current key lights pink here. Pressing it again does nothing, because preset 4 has one layout. The octave is preset 4's own, so you can keep the chords low and the keyboard high.</p>
+
+    <h3 id="chords-how">How it works</h3>
+    <p>A pad can only send one note, so each pad plays its chord's root note and Live's <strong>Chord</strong> MIDI effect adds the rest. The device the script adds is set to <strong>Use Current Scale</strong>, with its first two shifts at +2 and +4 scale steps: a third and a fifth above every note, counted in the key. That's what makes each chord major, minor or diminished as the key needs. If the track already has a Chord device, the script uses that one and leaves its settings alone.</p>
+    <p><strong>For sevenths</strong>, select the Chord device (click it, or hold <kbd>Stop</kbd> + <kbd>&lt;</kbd> <kbd>&gt;</kbd>) and set its third shift to 6 scale degrees with the knobs or the mouse. Strum and the Chord device's other controls work as usual. Note repeat plays the chord too.</p>
+  </section>
+
   <!-- DRUMS -->
   <section id="drums">
     <div class="section-head">
@@ -881,6 +929,7 @@
           <tr><td><code>presets/<wbr>preset1-launcher-mixer.spc</code></td><td>Preset 1</td><td>Clip launcher; <kbd>PAD BANK</kbd> → mixer</td></tr>
           <tr><td><code>presets/<wbr>preset2-sequencer-drums.spc</code></td><td>Preset 2</td><td>Step sequencer; <kbd>PAD BANK</kbd> → drum pads</td></tr>
           <tr><td><code>presets/<wbr>preset3-keys.spc</code></td><td>Preset 3</td><td>Scale keyboard and device knobs; <kbd>PAD BANK</kbd> → key and scale</td></tr>
+          <tr><td><code>presets/<wbr>preset4-chords.spc</code></td><td>Preset 4</td><td>Chords and device knobs; <kbd>PAD BANK</kbd> → key and scale</td></tr>
         </tbody>
       </table>
     </div>
@@ -892,13 +941,13 @@
       <table>
         <thead><tr><th>Folder</th><th>Runs</th></tr></thead>
         <tbody>
-          <tr><td><code>MVave_<wbr>SMC_<wbr>PAD</code></td><td>Pads, buttons and lights for presets 1 and 3: clips, the mixer and the keyboard</td></tr>
-          <tr><td><code>MVave_<wbr>SMC_<wbr>KNOBS</code></td><td>The knobs on every preset, preset 2's drum pads and preset 3's note repeat</td></tr>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>PAD</code></td><td>Pads, buttons and lights for presets 1, 3 and 4: clips, the mixer, the keyboard and the chords</td></tr>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>KNOBS</code></td><td>The knobs on every preset, preset 2's drum pads and the note repeat on presets 3 and 4</td></tr>
           <tr><td><code>MVave_<wbr>SMC_<wbr>STEPSEQ</code></td><td>Preset 2's step sequencer</td></tr>
         </tbody>
       </table>
     </div>
-    <p>All three are needed: <code>MVave_SMC_KNOBS</code> also passes preset 2's drum pads and note repeat to your tracks, and runs preset 3's knobs.</p>
+    <p>All three are needed: <code>MVave_SMC_KNOBS</code> also passes preset 2's drum pads and note repeat to your tracks, and runs the knobs on presets 3 and 4.</p>
 
     <h3 id="setup-ports">3. Ports in Live</h3>
     <p>Open <strong>Settings → Link, Tempo &amp; MIDI</strong>. Fill three Control Surface rows:</p>
@@ -925,7 +974,7 @@
     <div class="trouble">
       <div class="panel">
         <h3 id="trouble-pads-do-nothing">Pads do nothing</h3>
-        <p>Check you're on the right preset for what you're doing. Remember <kbd>PAD BANK</kbd> flips the pads to a second layout: the mixer on preset 1, drum pads on preset 2, key and scale on preset 3. Drum pads and the keyboard only play into an armed track (or one set to Monitor In).</p>
+        <p>Check you're on the right preset for what you're doing. Remember <kbd>PAD BANK</kbd> flips the pads to a second layout: the mixer on preset 1, drum pads on preset 2, key and scale on presets 3 and 4. Drum pads, the keyboard and the chords only play into an armed track (or one set to Monitor In).</p>
       </div>
       <div class="panel">
         <h3 id="trouble-pads-stay-dark-in-the-launcher">Pads stay dark in the launcher</h3>
@@ -941,7 +990,7 @@
       </div>
       <div class="panel">
         <h3 id="trouble-empty-pads-show-white">Empty pads show white</h3>
-        <p>The preset on the controller doesn't match the scripts. In MidiSuite, M-Vave's editor, import the right file from the <code>presets</code> folder again: <code>preset1-launcher-mixer.spc</code> (preset 1), <code>preset2-sequencer-drums.spc</code> (preset 2) or <code>preset3-keys.spc</code> (preset 3).</p>
+        <p>The preset on the controller doesn't match the scripts. In MidiSuite, M-Vave's editor, import the right file from the <code>presets</code> folder again: <code>preset1-launcher-mixer.spc</code> (preset 1), <code>preset2-sequencer-drums.spc</code> (preset 2), <code>preset3-keys.spc</code> (preset 3) or <code>preset4-chords.spc</code> (preset 4).</p>
       </div>
       <div class="panel">
         <h3 id="trouble-old-lights-stay-after-switching">Old lights stay after switching</h3>
@@ -950,13 +999,17 @@
       </div>
       <div class="panel">
         <h3 id="trouble-pads-launch-the-wrong-clips">Pads launch the wrong clips</h3>
-        <p>If every pad fires the clip three pads along and the last pads stay white, the controller holds a preset file from before 8 October 2026. Import all three files from <code>presets</code> again and save them to the controller.</p>
+        <p>If every pad fires the clip three pads along and the last pads stay white, the controller holds a preset file from before 8 October 2026. Import all the files from <code>presets</code> again and save them to the controller.</p>
+      </div>
+      <div class="panel">
+        <h3 id="trouble-chords-play-single-notes">Preset 4 plays single notes</h3>
+        <p>The chords come from Live's <strong>Chord</strong> device on the track, which the script adds and switches on while preset 4 is up. Check the track has one, switched on, in front of the synth, with <strong>Use Current Scale</strong> on. If it's there but adds nothing, look at its shifts in scale degrees: the first two should be 2 and 4. The script leaves a Chord device it didn't add alone, so if yours is set differently, delete it and switch to preset 4 again for a fresh one. After copying new scripts, quit and reopen Live: it only reads them when it starts.</p>
       </div>
     </div>
   </section>
 
   <footer>
-    Set up for one specific configuration: preset 1 <code>preset1-launcher-mixer.spc</code>, preset 2 <code>preset2-sequencer-drums.spc</code>, preset 3 <code>preset3-keys.spc</code>, scripts in <code>/Users/Shared/Ableton/User Library/Remote Scripts/</code>.
+    Set up for one specific configuration: preset 1 <code>preset1-launcher-mixer.spc</code>, preset 2 <code>preset2-sequencer-drums.spc</code>, preset 3 <code>preset3-keys.spc</code>, preset 4 <code>preset4-chords.spc</code>, scripts in <code>/Users/Shared/Ableton/User Library/Remote Scripts/</code>.
   </footer>
 
 </div>
