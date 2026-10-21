@@ -4142,24 +4142,28 @@ class DrumColours(SeqTest):
         self.assertEqual(drum_color(39, 'Handclap'), self.colour('snare'))
         self.assertEqual(drum_color(36, 'Kickdrum Acid House'), self.colour('kick'))
         self.assertEqual(drum_color(46, 'Hihat Open Brim'), self.colour('hat'))
-        for name in ('Shatter FX', 'FX What', 'Synth Note Wide Phatty F',
-                     'Berimbau Stab', 'Perc Atom', 'Stomp Voltage'):
-            self.assertEqual(drum_color(45, name), C.COLOR_DRUM_OTHER, name)
+        # 'hat', 'rim' and 'tom' inside a word don't count.
+        for name, kind in (('Shatter FX', 'fx'), ('FX What', 'fx'),
+                           ('Synth Note Wide Phatty F', 'pitched'),
+                           ('Berimbau Stab', 'pitched'), ('Perc Atom', 'perc')):
+            self.assertEqual(drum_color(45, name), self.colour(kind), name)
+        self.assertEqual(drum_color(45, 'Stomp Voltage'), C.COLOR_DRUM_OTHER)
 
     def test_hat_abbreviations(self):
         drum_color = SEQ_MODULE.drum_color
         for name in ('ClosedHH Acoustified 08', 'OpenHH Acoustified 10',
                      'DS HHC', 'DS HHO', 'DS HHP', 'Simple CH'):
             self.assertEqual(drum_color(60, name), self.colour('hat'), name)
-        self.assertEqual(drum_color(60, 'Chord Stab'), C.COLOR_DRUM_OTHER)
+        # 'ch' only as a whole word: "Chord" is no hat.
+        self.assertEqual(drum_color(60, 'Chord Stab'), self.colour('pitched'))
 
     def test_short_words_match_only_whole(self):
         # 'sd' must not make "Bassdrive" a snare, nor 'hh' anything with hh in it.
-        self.assertEqual(SEQ_MODULE.drum_color(60, 'Bassdrive'), C.COLOR_DRUM_OTHER)
+        self.assertEqual(SEQ_MODULE.drum_color(60, 'Bassdrive'), self.colour('pitched'))
 
     def test_a_name_beats_the_general_midi_map(self):
         self.assertEqual(SEQ_MODULE.drum_color(36, 'Bongo'), self.colour('tom'))
-        self.assertEqual(SEQ_MODULE.drum_color(36, 'Zap'), C.COLOR_DRUM_OTHER)
+        self.assertEqual(SEQ_MODULE.drum_color(36, 'Thump'), C.COLOR_DRUM_OTHER)
 
     def test_no_name_falls_back_to_general_midi(self):
         drum_color = SEQ_MODULE.drum_color
@@ -4181,7 +4185,31 @@ class DrumColours(SeqTest):
         for name in ('Vocal Shout DECAP 1', 'Vox Hey', 'FX Vocoder 2'):
             self.assertEqual(drum_color(60, name), self.colour('vocal'), name)
         self.assertEqual(drum_color(60, 'Ride Bell'), self.colour('cymbal'))
-        self.assertEqual(drum_color(60, 'Perc Metallic'), C.COLOR_DRUM_OTHER)
+        self.assertEqual(drum_color(60, 'Tabla SP'), self.colour('tom'))
+        self.assertEqual(drum_color(60, 'Wood Vibraslap'), self.colour('handperc'))
+
+    def test_percussion_loops_effects_and_pitched_sounds(self):
+        # From the 2026-10-21 survey's "anything else" pads.
+        drum_color = SEQ_MODULE.drum_color
+        for name, kind in (
+                ('Perc Kindified 2', 'perc'), ('E-Perc Strike Powered', 'perc'),
+                ('Perc Metallic', 'perc'), ('Wood MPC 1', 'perc'),
+                ('Bell Tin', 'perc'), ('Metal Hit Mallet', 'perc'),
+                ('Break Funk Chop 115 bpm', 'loop'), ('Guitar Loop Abmin 160 bpm', 'loop'),
+                ('FX Hit Scorched', 'fx'), ('Riser Taka Breath', 'fx'),
+                ('Impact Dub Chamber', 'fx'), ('Zap', 'fx'),
+                ('Synth Bass Sub Texas', 'pitched'), ('E-Piano Fm9 Road Monger', 'pitched'),
+                ('Stab Dub Techno Emin', 'pitched'), ('Organ Pad LDre FMaj7', 'pitched')):
+            self.assertEqual(drum_color(60, name), self.colour(kind), name)
+
+    def test_drum_words_beat_the_kinds_after_them(self):
+        drum_color = SEQ_MODULE.drum_color
+        self.assertEqual(drum_color(60, 'Kick Loop'), self.colour('kick'))
+        self.assertEqual(drum_color(60, 'Vocal Chop 3'), self.colour('vocal'))
+        self.assertEqual(drum_color(60, 'Shaker FX'), self.colour('handperc'))
+        self.assertEqual(drum_color(60, 'FX Bell Hum'), self.colour('fx'))
+        self.assertEqual(drum_color(60, 'Synth Perc'), self.colour('pitched'))
+        self.assertEqual(drum_color(60, 'Bell Chop'), self.colour('loop'))
 
     def test_kinds_have_colours_of_their_own(self):
         colours = [c for _, c, _, _ in C.DRUM_KINDS] + [C.COLOR_DRUM_OTHER]
@@ -4207,7 +4235,7 @@ class DrumColours(SeqTest):
         self.assertEqual(self.leds()[1], C.COLOR_PLAYHEAD_ON)
 
     def test_the_picker_shows_every_drum_in_its_colour(self):
-        self.named_kit({36: 'Kick', 38: 'Snare', 39: 'Clap', 40: 'Zap'})
+        self.named_kit({36: 'Kick', 38: 'Snare', 39: 'Clap', 40: 'Thump'})
         self.clip.notes.append(FakeNote(39, 0.0, C.STEP, 100))
         self.clip.notes.append(FakeNote(41, 0.0, C.STEP, 100))   # no sound
         self.clip._fire('notes')
@@ -4217,7 +4245,7 @@ class DrumColours(SeqTest):
         self.assertEqual(leds[12], C.COLOR_PICK_SELECTED)   # 36, the lane
         self.assertEqual(leds[14], kinds['snare'])          # 38: no notes
         self.assertEqual(leds[15], kinds['snare'])          # 39: notes, same
-        self.assertEqual(leds[8], C.COLOR_DRUM_OTHER)       # 40 'Zap'
+        self.assertEqual(leds[8], C.COLOR_DRUM_OTHER)       # 40 'Thump'
         self.assertEqual(leds[9], kinds['tom'])             # 41: notes, GM
         self.assertNotEqual(leds[13], C.COLOR_PICK_LOADED)  # 37: no sound
 

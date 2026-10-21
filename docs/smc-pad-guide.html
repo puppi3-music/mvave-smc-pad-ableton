@@ -36,6 +36,10 @@
     --c-violet: #8a4fe0;
     --c-ice: #d3e6f7;
     --c-absinth: #a3c23a;
+    --c-paleyellowgreen: #d9ec9a;
+    --c-mint: #8fe3d0;
+    --c-pinkorange: #f6b49a;
+    --c-pastelorange: #f8c98a;
     --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
     --cond: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
     --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -184,6 +188,8 @@
 
   /* control tables */
   .table-wrap { overflow-x: auto; }
+  .swatch-cell { display: flex; align-items: center; gap: 10px; }
+  .table-wrap + .table-wrap { margin-top: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 0.97rem; }
   th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th {
@@ -719,18 +725,40 @@
     </div>
 
     <h3 id="sequencer-drum-colours">Drum colours</h3>
-    <p>Steps light in the colour of the drum they play, in both views, so you can tell what you're editing at a glance:</p>
-    <ul class="legend">
-      <li><span class="swatch" style="background:var(--c-red)"></span>Kick</li>
-      <li><span class="swatch" style="background:var(--c-green)"></span>Snare, clap, rim</li>
-      <li><span class="swatch" style="background:var(--c-yellow)"></span>Hi-hats</li>
-      <li><span class="swatch" style="background:var(--c-blue)"></span>Cymbals: crash, ride, china, splash</li>
-      <li><span class="swatch" style="background:var(--c-purple)"></span>Toms, congas, bongos</li>
-      <li><span class="swatch" style="background:var(--c-absinth)"></span>Hand percussion: shakers, tambourines, cowbells, claves, triangles</li>
-      <li><span class="swatch" style="background:var(--c-palepink)"></span>Vocals</li>
-      <li><span class="swatch" style="background:var(--c-violet)"></span>Anything else</li>
+    <p>Steps light in the colour of the drum they play, in both views, so you can tell what you're editing at a glance. The same colours show on the drums while you hold <kbd>Record</kbd>.</p>
+    <div class="table-wrap">
+      <table class="colour-key">
+        <thead><tr><th>Colour</th><th>Drums and percussion</th></tr></thead>
+        <tbody>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-red)"></span>Red</span></td><td>Kick</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-green)"></span>Green</span></td><td>Snare, clap, rim</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-yellow)"></span>Yellow</span></td><td>Hi-hats</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-blue)"></span>Blue</span></td><td>Cymbals: crash, ride, china, splash</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-purple)"></span>Purple</span></td><td>Toms and hand drums: congas, bongos, tabla, cajon, timpani</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-absinth)"></span>Absinth green</span></td><td>Hand percussion: shakers, tambourines, cowbells, claves, triangles</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-paleyellowgreen)"></span>Pale yellow-green</span></td><td>Other percussion: anything called Perc, wood, bells, metal hits</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-wrap">
+      <table class="colour-key">
+        <thead><tr><th>Colour</th><th>Other sounds</th></tr></thead>
+        <tbody>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-palepink)"></span>Pale pink</span></td><td>Vocals</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-pastelorange)"></span>Pastel orange</span></td><td>Loops, chops and breaks</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-pinkorange)"></span>Pastel pink-orange</span></td><td>Effects: FX, risers, impacts, noise, zaps</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-mint)"></span>Mint</span></td><td>Pitched sounds: synths, bass, chords, stabs, keys, guitar</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch" style="background:var(--c-violet)"></span>Violet</span></td><td>Anything else</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>How the script knows which is which</strong></p>
+    <ul>
+      <li>It goes by the Drum Rack pad's name (usually the sample's), so a pad called <code>Kick 808</code> or <code>Bass Drum</code> is a kick wherever it sits.</li>
+      <li>A name with a drum in it wins over the rest, so <code>Kick Loop</code> is a kick and <code>Shaker FX</code> hand percussion.</li>
+      <li>Pads with no sound, or a track with no Drum Rack, go by the standard General MIDI drum notes instead: C1 kick, D1 snare, F#1 hat and so on.</li>
+      <li>The Drum Rack is the one on the sequencer clip's track, even while another track is selected, and a kit inside another rack counts too.</li>
     </ul>
-    <p>The script goes by the Drum Rack pad's name (usually the sample's), so a pad called <code>Kick 808</code> or <code>Bass Drum</code> is a kick wherever it sits. Pads with no sound, or a track with no Drum Rack, go by the standard General MIDI drum notes instead: C1 kick, D1 snare, F#1 hat and so on. The same colours show on the drums while you hold <kbd>Record</kbd>. The Drum Rack is the one on the sequencer clip's track, even while another track is selected, and a kit inside another rack counts too.</p>
 
     <div class="note">
       <strong>Step velocity comes from Shift + pad 9–12, not from how hard you hit.</strong>

@@ -1,7 +1,7 @@
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-10-21b'
+SCRIPT_REVISION = '2026-10-21c'
 
 # Hardware and layout constants for the SMC-PAD step sequencer.
 #
@@ -213,30 +213,33 @@ LANE_COLORS = (5, 14, 21, 24)
 # (Live's 909 kit) and "Rimshot" match, "Shatter" (hat), "Berimbau" (rim)
 # and "Perc Atom" (tom) don't. Shorter ones ('bd', 'hh', 'ch') only match a
 # whole word, so 'ch' does not turn "Chord" into a hat. First match wins, so
-# a "Kick Snare" layer is a kick. The words were checked on 2026-10-21
-# against the 5,811 pads of the 354 Drum Racks in Live 12's Core Library and
-# packs; 'oh', 'floor' and 'boom' were left out, as they caught "Vox Oh",
-# "Forest Floor" and "Snare Loose Boom". Congas and bongos count as toms;
-# shakers, tambourines, cowbells and the like are hand percussion; vocals
-# have their own colour. 'perc' alone stays 'other': in Live's kits it is as
-# often a synth blip as a hand drum.
+# the order matters: a "Kick Snare" layer is a kick, "Vocal Chop" a vocal,
+# "FX Bell Hum" an effect and "Synth Perc" a pitched sound, not percussion.
+# The words were checked on 2026-10-21 against the 5,811 pads of the 354
+# Drum Racks in Live 12's Core Library and packs; 'oh', 'floor' and 'boom'
+# were left out, as they caught "Vox Oh", "Forest Floor" and "Snare Loose
+# Boom". With these kinds about 2.5% of those pads are 'other'.
 #
 # Colours avoid the playhead's amber (15) and white (40). On 2026-10-21 they
-# were picked side by side on the pads (macOS, a test grid lit straight from
+# were picked side by side on the pads (macOS, test grids lit straight from
 # a script): red 14, green 5, yellow 46, blue 21, purple 24, absinth green 19,
-# pale pink 28 and violet 26 were all easy to tell apart and from the
-# playhead's two. What blurred: turquoise 6 and teal 20 with blue 21 (one
+# pale pink 28, violet 26, pale yellow-green 60, mint-aqua 47, pastel
+# pink-orange 16 and pastel orange 1 were all easy to tell apart and from
+# the playhead's two. What blurred: turquoise 6 and teal 20 with blue 21 (one
 # blue only), pink 56 with red 14, pink 12 with violet 26, lime 4 with
-# yellow 46, sky blue 62 with the blues, apricot 59 with orange 15. Caveats:
+# yellow 46, sky blue 62 with the blues, apricot 59 with orange 15; and
+# periwinkle 9, cornflower 63, pastel green 18, yellow-white 3 and pale lilac
+# 54 each with one of the colours above (HARDWARE.md 3.2.2). Caveats:
 #   - Hats were light blue 7 and cymbals yellow 4 until 2026-10-21, when hats
 #     became yellow by request and cymbals blue 21. 21 is also the picker's
 #     blue, but that is only used with DRUM_COLORS off.
 #   - 'other' was teal (20, COLOR_STEP_ON) until 2026-10-21, but it blurred
 #     with the light-blue hats. Now violet 26.
-#   - Hand percussion is absinth green 19, beside the snares' green 5: they
-#     looked apart on the pads, but are the pair to change if not on yours.
-#   - Vocals are pale pink 28, the one pink that stood apart from both the red
-#     and the violet. It also stood apart from the playhead's white.
+#   - Absinth green 19 (hand percussion) and pale yellow-green 60 (other
+#     percussion) sit nearest the snares' green 5: they looked apart on the
+#     pads, but are the ones to change if not on yours.
+#   - Pastel orange 1 (loops) is the closest to the playhead's amber 15. It
+#     stood apart from it, and loops are the smallest of the kinds.
 # DRUM_COLORS = False brings back teal steps and LANE_COLORS rows.
 DRUM_COLORS = True
 COLOR_DRUM_OTHER = 26               # violet: a drum none of the kinds below match
@@ -250,14 +253,32 @@ DRUM_KINDS = (
                  'hhp', 'ch'), (42, 44, 46)),                       # yellow
     ('cymbal', 21, ('crash', 'ride', 'cymbal', 'cym', 'china', 'splash'),
      (49, 51, 52, 53, 55, 57, 59)),                                # blue
+    # Toms and the hand and orchestral drums.
     ('tom', 24, ('tom', 'conga', 'bongo', 'timbale', 'djembe', 'tumba',
-                 'cuica'),
+                 'cuica', 'tabla', 'darbuka', 'doumbek', 'taiko', 'surdo',
+                 'cajon', 'timpani', 'timp'),
      (41, 43, 45, 47, 48, 50, 60, 61, 62, 63, 64, 65, 66, 78, 79)),  # purple
-    ('handperc', 19, ('shake', 'tamb', 'cabasa', 'maraca', 'guiro', 'triangle',
-                      'cowbell', 'clave', 'castanet', 'agogo', 'woodblock'),
+    ('handperc', 19, ('shake', 'tamb', 'cabasa', 'cabassa', 'maraca', 'guiro',
+                      'triangle', 'cowbell', 'clave', 'castanet', 'agogo',
+                      'woodblock', 'vibraslap', 'flexatone', 'jingle', 'whip'),
      (54, 56, 58, 67, 68, 69, 70, 73, 74, 75, 76, 77, 80, 81, 82)),  # absinth green
     ('vocal', 28, ('vocal', 'vox', 'voice', 'vocoder', 'choir', 'chant',
                    'shout'), ()),                                 # pale pink
+    # The kinds below are checked after the drums, so a drum word wins.
+    ('loop', 1, ('loop', 'chop', 'break', 'bpm'), ()),             # pastel orange
+    ('fx', 16, ('fx', 'sfx', 'rise', 'impact', 'noise', 'zap', 'glitch', 'laser',
+                'siren', 'reverse', 'swirl', 'atmo', 'sweep', 'drone', 'foley',
+                'blip', 'bleep', 'whoosh', 'swoosh', 'crackle', 'stutter',
+                'scratch', 'uplifter', 'downlifter'), ()),        # pastel pink-orange
+    ('pitched', 47, ('synth', 'bass', 'sub', 'chord', 'piano', 'stab', 'guitar',
+                     'pad', 'string', 'organ', 'lead', 'arp', 'keys', 'brass',
+                     'pluck', 'harp', 'note', 'melod', 'horn', 'pizzicato',
+                     'flute', 'marimba', 'vibra', 'kalimba', 'glock', 'xylo'),
+     ()),                                                          # mint-aqua
+    # 'perc' last, as in Live's kits it is also a synth blip or an effect.
+    ('perc', 60, ('perc', 'wood', 'bell', 'metal', 'knock', 'rattle', 'clang',
+                  'clank', 'block', 'anvil', 'bottle', 'pot', 'slap', 'tube',
+                  'strike', 'mallet', 'gong', 'tamtam', 'chime'), ()),  # pale yellow-green
 )
 
 # The lane picker, shown while MOD is held: the 16 pads become the 16 drums
