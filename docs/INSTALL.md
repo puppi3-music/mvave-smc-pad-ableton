@@ -271,7 +271,8 @@ port 2.
 ## Checking it worked
 
 The quickest check is the controller itself. When Live opens, it should switch
-to preset 1 and play a rainbow across the pads for about three seconds, then
+to preset 1 and play a waving trans flag (or a rainbow, see `INTRO_STYLE`)
+across the pads for about three seconds, then
 flash pad 1 (bottom-left) white. That shows `MVave_SMC_PAD` and
 `MVave_SMC_KNOBS` are both loaded with their outputs set. Then pads under the
 coloured session box should light orange where a clip sits and green when one
@@ -481,7 +482,7 @@ Everything the pad script maps lives in this one file. `-1` means unassigned.
 | `BUTTONCHANNEL`, `SLIDERCHANNEL` | MIDI channel, 0-based: `0` is channel 1. |
 | `MESSAGETYPE` | `0` for notes, `1` for CCs. |
 | `NEW_CLIP_BARS` | Length in bars of the empty clip a pad makes on an empty slot of a MIDI track, like double-clicking the slot (`1`). `0` restores the old press: record if armed, else stop the track. |
-| `INTRO_ENABLED` and the other `INTRO_*` | The startup intro. `INTRO_ENABLED = False` turns it off. `INTRO_COLOUR_TICKS` sets its speed (1 is the fastest that shows every colour; 2 is half speed). |
+| `INTRO_ENABLED` and the other `INTRO_*` | The startup intro. `INTRO_ENABLED = False` turns it off. `INTRO_STYLE` picks `'flag'` (a waving trans flag, the default) or `'rainbow'`. `INTRO_FLAG` holds the flag's five stripe colours, bottom to top, and `INTRO_WAVE_TICKS` how many ticks one ripple takes (10 is one a second). `INTRO_COLOUR_TICKS` sets the rainbow's speed (1 is the fastest that shows every colour; 2 is half speed). |
 | `MODIFIER` | Disabled (`-1`). Set to a button note, the arrows bank the session box through scenes while it is held, at the cost of that button's normal job. |
 | Everything else | Standard slots from the template this is built on: sends, scene launch, device banks. Nearly all `-1`. |
 

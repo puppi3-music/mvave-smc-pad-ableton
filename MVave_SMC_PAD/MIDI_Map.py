@@ -1,7 +1,7 @@
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-10-20'
+SCRIPT_REVISION = '2026-10-20b'
 
 # Avoid using tabs for indentation, use spaces.
 # Don't use floats, they might break things.
@@ -156,11 +156,27 @@ PAD_LED_OFFSET = 32
 
 # Startup intro
 # -------------
-# When Live loads, a rainbow runs diagonally across the grid from PAD1 to the
-# top-right pad for ~3 s, then PAD1 flashes for ~2 s to say preset 1 is loaded
-# (Shift + PAD1 is preset 1), then the clip colours come back. Ticks are Live's
-# display ticks, about 100 ms each. StartupIntro.py has the details.
+# When Live loads, the grid plays a show for ~3 s -- a waving trans flag, or a
+# rainbow -- then PAD1 flashes for ~2 s to say preset 1 is loaded (Shift + PAD1
+# is preset 1), then the clip colours come back. Ticks are Live's display
+# ticks, about 100 ms each. StartupIntro.py has the details.
 INTRO_ENABLED = True        # False skips it
+INTRO_STYLE = 'flag'        # 'flag' or 'rainbow'
+INTRO_SHOW_TICKS = 30       # ~3 s of flag or rainbow, before the flash
+#
+# The flag unfurls from the left column, a column a tick, then waves: a ripple
+# runs left to right across the grid every INTRO_WAVE_TICKS, so the stripes
+# rise and dip column by column. Its five stripes, bottom to top: light blue,
+# pink, white, pink, light blue. Four rows can't show five stripes at once, so
+# the white one shows where the wave lifts the middle rows onto it.
+# 62 (sky blue), 56 (pink) and 40 (white) are from the palette survey
+# (HARDWARE.md 3.2.1); pale pinks (28, 57) were passed over as they read as
+# white on the pads. Approved on the pads on 2026-10-20 (played by a scratch
+# script with Live closed).
+INTRO_FLAG = (62, 56, 40, 56, 62)
+INTRO_WAVE_TICKS = 10       # one ripple a second
+#
+# The rainbow runs diagonally across the grid from PAD1 to the top-right pad.
 # The pads can't blend: each colour is a palette index (HARDWARE.md 3.2), so
 # the rainbow is as smooth as its list is long. These 18 were picked on the
 # device on 2026-10-20 from a survey of the whole palette (HARDWARE.md 3.2.1),
@@ -171,9 +187,8 @@ INTRO_ENABLED = True        # False skips it
 # Pale entries were left out: in a moving rainbow they flash white. So were
 # near-duplicates (7 looks like 20).
 INTRO_RAINBOW = (14, 15, 59, 46, 4, 19, 5, 6, 20, 62, 21, 63, 9, 24, 11, 26, 12, 56)
-INTRO_RAINBOW_TICKS = 30    # ~3 s
-# How many ticks each colour lasts on a pad; each diagonal is one colour behind
-# the last. 1, the fastest that shows every colour, takes each pad round the
+# How many ticks each rainbow colour lasts on a pad; each diagonal is one
+# colour behind the last. 1, the fastest that shows every colour, takes each pad round the
 # 18 colours about 1.7 times in ~3 s. 2 is half the speed.
 INTRO_COLOUR_TICKS = 1
 INTRO_FLASH_TICKS = 20      # ~2 s

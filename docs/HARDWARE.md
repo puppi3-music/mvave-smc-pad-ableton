@@ -279,7 +279,10 @@ Past 24 the palette keeps cycling through the hues, paler each time, and
 114-125 repeat 53-63. So the vivid colours are almost all in 1-24, plus 26,
 46, 56, 59, 62 and 63. The startup intro's `INTRO_RAINBOW` is 18 of these in
 hue order: 14 15 59 46 4 19 5 6 20 62 21 63 9 24 11 26 12 56. That is close
-to the most a smooth rainbow can use: the rest are pale, or duplicates.
+to the most a smooth rainbow can use: the rest are pale, or duplicates. Its
+trans flag, `INTRO_FLAG`, is 62 (sky blue), 56 (pink) and 40 (white): the
+pale pinks 28 and 57 read as white, so the pink stripe uses the deeper 56.
+The flag was approved on the pads on 2026-10-20.
 
 **What this means in practice:**
 
@@ -459,7 +462,8 @@ Change on any port or channel switches nothing.
 when Live loads (`STARTUP_PRESET` and `STARTUP_BANK`, `None` to turn it off).
 It writes only a byte the first reply shows wrong, one write per reply, at most
 four in all. The first reply after that tells `MVave_SMC_PAD` whether to play
-its startup intro (a rainbow, then a PAD1 flash on LEDs 33-48). The intro only
+its startup intro (a waving trans flag or a rainbow, then a PAD1 flash on
+LEDs 33-48). The intro only
 shows while preset 1, bank A is up, so it is skipped on any other layout.
 
 ---

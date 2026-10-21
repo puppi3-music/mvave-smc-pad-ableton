@@ -58,7 +58,8 @@ Nothing in Live changes when you do, because all the scripts stay loaded.
 
 The files are in `presets/` and are loaded with MidiSuite, M-Vave's
 editor. When Live opens, it puts the controller on preset 1 and plays a short
-rainbow across the pads.
+light show across the pads: a waving trans flag, or a rainbow if you'd rather
+(`INTRO_STYLE` in `MVave_SMC_PAD/MIDI_Map.py`).
 
 ### Buttons and knobs
 

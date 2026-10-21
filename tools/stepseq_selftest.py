@@ -4110,7 +4110,8 @@ class FakeIntroSurface(FakeKeysSurface):
 
 
 class StartupIntro(unittest.TestCase):
-    """MVave_SMC_PAD/StartupIntro.py: the rainbow and the PAD1 flash at load."""
+    """MVave_SMC_PAD/StartupIntro.py: the flag or rainbow and the PAD1 flash
+    at load."""
 
     def setUp(self):
         _load_keys_mode()
@@ -4121,6 +4122,10 @@ class StartupIntro(unittest.TestCase):
         self.pads = self.mod.grid_leds()
         # PAD1, bottom-left, sends note 13: the grid's first row is the top.
         self.pad1 = self.mod.PAD_LED_OFFSET + 13
+        self.style = self.mod.INTRO_STYLE
+
+    def tearDown(self):
+        self.mod.INTRO_STYLE = self.style
 
     def lit(self):
         leds = {}
@@ -4129,10 +4134,11 @@ class StartupIntro(unittest.TestCase):
         return leds
 
     def test_the_grid_is_the_clip_grids_leds(self):
-        self.assertEqual(sorted(led for led, _ in self.pads), list(range(33, 49)))
-        self.assertEqual(dict(self.pads)[self.pad1], 0)         # PAD1 first
-        self.assertEqual(dict(self.pads)[36], 6)                # top-right (note 4) last
-        self.assertEqual(dict(self.pads)[33], 3)                # PAD13 (note 1) top-left
+        place = {led: (row, col) for led, row, col in self.pads}
+        self.assertEqual(sorted(place), list(range(33, 49)))
+        self.assertEqual(place[self.pad1], (0, 0))              # PAD1 bottom-left
+        self.assertEqual(place[36], (3, 3))                     # note 4 top-right
+        self.assertEqual(place[33], (3, 0))                     # PAD13 (note 1) top-left
 
     def test_pad1_is_the_bottom_left_pad_in_preset_1(self):
         # Record 32 is PAD1, bank A (tools/make_presets.py BANK_A).
@@ -4142,7 +4148,57 @@ class StartupIntro(unittest.TestCase):
         record = 211 + 32 * 26
         self.assertEqual(data[record + 8], self.pad1)           # its LED number
 
+    def test_the_flag_is_the_default(self):
+        self.assertEqual(self.style, 'flag')
+
+    def test_the_flag_unfurls_from_the_left_column(self):
+        self.mod.INTRO_STYLE = 'flag'
+        place = {led: (row, col) for led, row, col in self.pads}
+        for step in range(4):
+            leds = self.mod.frame(step, self.pads)
+            for led, colour in leds.items():
+                self.assertEqual(bool(colour), place[led][1] <= step)
+
+    def test_the_flag_shows_only_its_stripes_and_all_of_them(self):
+        self.mod.INTRO_STYLE = 'flag'
+        flag = self.mod.INTRO_FLAG
+        seen = set()
+        for step in range(self.mod.INTRO_SHOW_TICKS):
+            seen.update(self.mod.frame(step, self.pads).values())
+        self.assertEqual(seen - {0}, set(flag))
+        self.assertEqual(flag, tuple(reversed(flag)))           # same either way up
+        self.assertEqual(len(flag), 5)
+
+    def test_the_flag_keeps_its_order_up_every_column(self):
+        self.mod.INTRO_STYLE = 'flag'
+        flag = list(self.mod.INTRO_FLAG)
+        for step in range(4, self.mod.INTRO_SHOW_TICKS):
+            leds = self.mod.frame(step, self.pads)
+            for col in range(4):
+                column = [leds[led] for led, row, c in sorted(
+                    self.pads, key=lambda p: p[1]) if c == col]
+                # Bottom to top, a column walks up the stripes, never down.
+                stripe = 0
+                for colour in column:
+                    while stripe < len(flag) and flag[stripe] != colour:
+                        stripe += 1
+                    self.assertLess(stripe, len(flag), (step, col, column))
+
+    def test_the_flag_waves(self):
+        self.mod.INTRO_STYLE = 'flag'
+        frames = [self.mod.frame(step, self.pads)
+                  for step in range(4, 4 + self.mod.INTRO_WAVE_TICKS)]
+        self.assertGreater(len(set(tuple(sorted(f.items())) for f in frames)), 2)
+        # A ripple later it is back where it was.
+        self.assertEqual(self.mod.frame(4, self.pads),
+                         self.mod.frame(4 + self.mod.INTRO_WAVE_TICKS, self.pads))
+
+    def test_every_flag_colour_is_in_the_palette(self):
+        for colour in self.mod.INTRO_FLAG:
+            self.assertTrue(0 < colour < 64)
+
     def test_the_rainbow_starts_at_pad1_and_spreads_diagonally(self):
+        self.mod.INTRO_STYLE = 'rainbow'
         first = self.mod.frame(0, self.pads)
         self.assertEqual(first[self.pad1], self.mod.INTRO_RAINBOW[0])
         self.assertEqual([led for led, c in first.items() if c], [self.pad1])
@@ -4155,9 +4211,10 @@ class StartupIntro(unittest.TestCase):
         self.assertEqual((rainbow.index(later[pad2]) - rainbow.index(later[pad6])) % len(rainbow), 1)
 
     def test_pad1_steps_through_every_colour_in_order(self):
+        self.mod.INTRO_STYLE = 'rainbow'
         rainbow = self.mod.INTRO_RAINBOW
         seen = [self.mod.frame(step, self.pads)[self.pad1]
-                for step in range(self.mod.INTRO_RAINBOW_TICKS)]
+                for step in range(self.mod.INTRO_SHOW_TICKS)]
         ticks = self.mod.INTRO_COLOUR_TICKS
         self.assertEqual(seen, [rainbow[(s // ticks) % len(rainbow)] for s in range(len(seen))])
         self.assertEqual(set(seen), set(rainbow))               # none skipped
@@ -4170,11 +4227,11 @@ class StartupIntro(unittest.TestCase):
             self.assertTrue(0 < colour < 64)
 
     def test_it_lasts_about_three_plus_two_seconds(self):
-        self.assertEqual(self.mod.INTRO_RAINBOW_TICKS, 30)
+        self.assertEqual(self.mod.INTRO_SHOW_TICKS, 30)
         self.assertEqual(self.mod.INTRO_FLASH_TICKS, 20)
 
     def test_then_only_pad1_flashes(self):
-        start = self.mod.INTRO_RAINBOW_TICKS
+        start = self.mod.INTRO_SHOW_TICKS
         on, off = self.mod.frame(start, self.pads), self.mod.frame(
             start + self.mod.INTRO_FLASH_STEP, self.pads)
         self.assertEqual({l: c for l, c in on.items() if c},
@@ -4184,8 +4241,8 @@ class StartupIntro(unittest.TestCase):
     def test_play_runs_to_the_end_then_hands_the_grid_back(self):
         self.intro.play()
         self.assertTrue(self.intro.playing)
-        self.assertEqual(self.lit()[self.pad1], self.mod.INTRO_RAINBOW[0])
-        self.surface.run_ticks(self.mod.INTRO_RAINBOW_TICKS + self.mod.INTRO_FLASH_TICKS - 1)
+        self.assertEqual(self.lit()[self.pad1], self.mod.INTRO_FLAG[0])
+        self.surface.run_ticks(self.mod.INTRO_SHOW_TICKS + self.mod.INTRO_FLASH_TICKS - 1)
         self.assertTrue(self.intro.playing)
         self.assertEqual(self.surface.refreshed, 0)
         self.surface.run_ticks(1)
@@ -4195,7 +4252,7 @@ class StartupIntro(unittest.TestCase):
 
     def test_only_changes_are_sent_between_ticks(self):
         self.intro.play()
-        self.surface.run_ticks(self.mod.INTRO_RAINBOW_TICKS)  # first flash tick
+        self.surface.run_ticks(self.mod.INTRO_SHOW_TICKS)  # first flash tick
         del self.surface.sent[:]
         self.surface.run_ticks(1)                               # PAD1 still on
         self.assertEqual(self.surface.sent, [])
