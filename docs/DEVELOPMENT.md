@@ -333,6 +333,14 @@ other two are local variables (`detail_view_toggler`, `transport`) and the scrip
 keeps no reference to them. That is inherited from the template. If you need to
 reassign their buttons at runtime, store them first.
 
+The transport is given no record button. **`_setup_record()`** listens to note
+19 itself, as `_setup_stop_and_arrows()` does for Stop: it toggles
+`song.record_mode` (Arrangement record) on preset 1 and `song.session_record`
+on the presets in `SESSION_RECORD_PRESETS` (3 and 4), and lights the button
+from whichever of the two it controls. The preset comes from `set_preset()`,
+which `MVave_SMC_KNOBS` calls on every switch; until it does, Record stays
+Arrangement record.
+
 Note the two guards:
 
 ```python

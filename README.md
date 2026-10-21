@@ -69,7 +69,7 @@ light show across the pads: a waving trans flag, or a rainbow if you'd rather
 | Play | Live's play | Launch or stop the selected clip. Record + Play starts or stops Live |
 | Stop | Stop Live, on release | Switch between 16 steps and the 4 × 4 overview, on release |
 | Hold Stop + `<` `>` | Move the blue hand to the previous / next device on the track | The same. A Drum Rack's selected drum comes right after the rack |
-| Record | Arrangement record | Held: the pads show the drums. Record + pad picks one. Record + `<` `>`: clip one bar shorter / longer |
+| Record | Preset 1: Arrangement record. Presets 3 and 4: Live's Session Record, to record into the playing clip | Held: the pads show the drums. Record + pad picks one. Record + `<` `>`: clip one bar shorter / longer |
 | `<` `>` | Select the previous / next track | Page through the steps |
 | Knob bank 1 | Macros 1–8 of the selected device (presets 3 and 4: Live's first parameter bank for it) | Macros 1–8 |
 | Knob bank 2 | Encoders 1–2 move the session box, 3–8 are macros 9–14 (presets 3 and 4: Live's second parameter bank) | Macros 9–16 |

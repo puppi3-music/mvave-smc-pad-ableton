@@ -104,6 +104,8 @@ class MVave_SMC_PAD(ControlSurface):
             self._modifier_button = None
             self._stop_held = False
             self._stop_combo = False
+            self._preset = None
+            self._record_button = None
             self._nav_listeners = []
             self._keys_mode = None
             self._chords_mode = None
@@ -113,6 +115,7 @@ class MVave_SMC_PAD(ControlSurface):
             self._session.set_mixer(self._mixer)
             self._setup_device_and_transport_control()
             self._setup_stop_and_arrows()
+            self._setup_record()
             self._setup_keys()
             self.set_highlighting_session_component(self._session)
             # self.set_suppress_rebuild_requests(False)
@@ -138,6 +141,12 @@ class MVave_SMC_PAD(ControlSurface):
         for button, listener in self._nav_listeners:
             button.remove_value_listener(listener)
         self._nav_listeners = []
+        if self._record_button is not None:
+            self._record_button.remove_value_listener(self._record_value)
+            self._record_button = None
+            song = self.song()
+            song.remove_record_mode_listener(self._light_record)
+            song.remove_session_record_listener(self._light_record)
         for mode in (self._keys_mode, self._chords_mode, self._chord_devices):
             if mode is not None:
                 mode.disconnect()
@@ -330,7 +339,7 @@ class MVave_SMC_PAD(ControlSurface):
         transport.name = 'Transport'
         transport.set_play_button(self._note_map[PLAY])
         transport.set_stop_button(None)     # owned by _setup_stop_and_arrows
-        transport.set_record_button(self._note_map[REC])
+        transport.set_record_button(None)   # owned by _setup_record
         transport.set_nudge_buttons(self._note_map[NUDGEUP], self._note_map[NUDGEDOWN])
         transport.set_undo_button(self._note_map[UNDO])
         transport.set_redo_button(self._note_map[REDO])
@@ -362,7 +371,10 @@ class MVave_SMC_PAD(ControlSurface):
 
     def set_preset(self, preset):
         """Called by MVave_SMC_KNOBS with the preset now up, counted from 0:
-        preset 4's Chord devices are on only while it is."""
+        preset 4's Chord devices are on only while it is, and Record is
+        Session Record on presets 3 and 4."""
+        self._preset = preset
+        self._light_record()
         if self._chord_devices is None:
             return
         try:
@@ -383,6 +395,7 @@ class MVave_SMC_PAD(ControlSurface):
                     mode.repaint()
                 except Exception:
                     self._log_exception('keyboard repaint')
+        self._light_record()
         # The clip colours just went out; the intro, while it runs, goes on top.
         try:
             self._intro.repaint()
@@ -402,6 +415,54 @@ class MVave_SMC_PAD(ControlSurface):
             if button is not None:
                 button.add_value_listener(listener)
                 self._nav_listeners.append((button, listener))
+
+    def _setup_record(self):
+        # Record is Arrangement record on preset 1 and Session Record on
+        # presets 3 and 4, where you play parts into clips. The transport's
+        # record toggle is tied to one property, so the button is handled here
+        # with a plain value listener, like Stop. Until MVave_SMC_KNOBS names a
+        # preset it stays Arrangement record, as it always was.
+        self._record_button = self._note_map[REC]
+        if self._record_button is None:
+            return
+        self._record_button.add_value_listener(self._record_value)
+        song = self.song()
+        song.add_record_mode_listener(self._light_record)
+        song.add_session_record_listener(self._light_record)
+        self._light_record()
+
+    def _session_record_preset(self):
+        return self._preset in SESSION_RECORD_PRESETS
+
+    def _record_value(self, value):
+        if not value:
+            return
+        try:
+            song = self.song()
+            if self._session_record_preset():
+                song.session_record = not song.session_record
+            else:
+                song.record_mode = not song.record_mode
+        except Exception:
+            self._log_exception('record')
+
+    def _light_record(self):
+        # getattr: Live can call refresh_state before __init__ gets this far.
+        button = getattr(self, '_record_button', None)
+        if button is None:
+            return
+        try:
+            song = self.song()
+            if self._session_record_preset():
+                on = song.session_record
+            else:
+                on = song.record_mode
+            if on:
+                button.turn_on()
+            else:
+                button.turn_off()
+        except Exception:
+            self._log_exception('record light')
 
     def _stop_value(self, value):
         if value:

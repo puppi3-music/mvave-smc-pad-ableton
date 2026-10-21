@@ -1,7 +1,7 @@
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-10-21'
+SCRIPT_REVISION = '2026-10-21a'
 
 # Avoid using tabs for indentation, use spaces.
 # Don't use floats, they might break things.
@@ -30,7 +30,9 @@ TSB_Y = 4   # Controls the horizontal value for the track selection box. Default
 # General
 PLAY = 17   # Global play
 STOP = 18   # Global stop
-REC = 19    # Global record
+REC = 19    # Global record: Arrangement record, or Session Record on the
+            # presets in SESSION_RECORD_PRESETS
+SESSION_RECORD_PRESETS = (2, 3)     # presets 3 and 4, counted from 0
 TAPTEMPO = -1   # Tap tempo
 NUDGEUP = -1    # Tempo Nudge Up
 NUDGEDOWN = -1  # Tempo Nudge Down
