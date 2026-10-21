@@ -1010,7 +1010,7 @@ diagnostics quoted are the exact strings to grep for if a future Live disagrees.
   Scale Degrees` (`0 sd`), plus `Velocity`, `Chance`, `Strum`, `Strum Tension`,
   `Strum Crescendo` and `Use Current Scale`. With Use Current Scale on, only the
   Scale Degrees shifts play. With those at 2 and 4, preset 4 plays chords in
-  key (heard by the user, 2026-10-20).
+  key (heard on hardware, 2026-10-20).
 - **Notes and LEDs past 121 work on a lit pad.** Preset 4's Scale › pad sends
   note 122 and lights at LED 123: it steps the scale, lights green and flickers
   white on reaching Major, like preset 3's.

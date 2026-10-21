@@ -206,7 +206,9 @@ launcher and sequencer sources in `reference/`.
 ├── presets/              what to load into the controller (see WHICH-PRESET.txt)
 │   ├── preset1-launcher-mixer.spc
 │   ├── preset2-sequencer-drums.spc
-│   └── preset3-keys.spc
+│   ├── preset3-keys.spc
+│   ├── preset4-chords.spc
+│   └── WHICH-PRESET.txt    which file goes in which preset slot
 ├── reference/            not for loading
 │   ├── smc-pad-launcher-led33.spc   inputs to tools/make_presets.py
 │   ├── smc-pad-sequencer-led69.spc
@@ -234,7 +236,8 @@ controller it adapts easily: see [PROBE.md](docs/PROBE.md).
 
 ## Status
 
-In daily use on macOS with Live 12.3. Built, and first verified, on Windows
+In daily use on macOS with Live 12.3 and 12.4 (preset 4 verified on 12.4.6).
+Built, and first verified, on Windows
 with Live 11.3. The keyboards and the knobs on presets 3 and 4 are built on two
 Live 12 features, the song's Scale setting and Live's parameter-bank table.
 Without them the knobs fall back to plain parameter order and the keyboards to

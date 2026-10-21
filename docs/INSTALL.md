@@ -37,7 +37,7 @@ Once it's installed, the user guide ([online](https://puppi3-music.github.io/mva
 
 | | |
 |---|---|
-| Ableton Live | Live 11 or 12. In daily use on **Live 12.3 (macOS)**; first verified on Live 11.3.43 (Windows), see DEVELOPMENT.md §"Verified on hardware". The step sequencer needs Live 11+ (`get_notes_extended`). The keyboard follows Live 12's Scale setting, and preset 3's knobs use Live 12's parameter banks. Preset 4 needs Live 12's Chord device with Use Current Scale, and adds it to the track itself on Live 12.4 (`Track.insert_device`). |
+| Ableton Live | Live 11 or 12. In daily use on **Live 12.3 and 12.4 (macOS)**, preset 4 verified on 12.4.6; first verified on Live 11.3.43 (Windows), see DEVELOPMENT.md §"Verified on hardware". The step sequencer needs Live 11+ (`get_notes_extended`). The keyboard follows Live 12's Scale setting, and preset 3's knobs use Live 12's parameter banks. Preset 4 needs Live 12's Chord device with Use Current Scale, and adds it to the track itself on Live 12.4 (`Track.insert_device`). |
 | Hardware | M-Vave SMC-PAD, connected by USB. |
 | Editor | **MidiSuite**, M-Vave's editor, from [m-vave.com/appdownload](https://www.m-vave.com/appdownload) (Windows, macOS, iOS, Android). It is the only way to write presets to the controller. |
 | OS | Windows or macOS. |
