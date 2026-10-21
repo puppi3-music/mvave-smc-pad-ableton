@@ -364,7 +364,7 @@
             <span class="see">four rows of four steps: kick on the bottom row, then C#1, snare and clap above it, the same order as Live's piano roll. <kbd>&lt;</kbd> <kbd>&gt;</kbd> move along the bar four steps at a time. Press <kbd>Stop</kbd> again to go back.</span></span></li>
           <li><span><strong>Shape the sound.</strong> The knobs on knob bank 1 turn the Drum Rack's macros. To tweak just the kick (its decay, say), hold <kbd>Stop</kbd> and press <kbd>&gt;</kbd>: the knobs move to the drum you last picked. Hold <kbd>Stop</kbd> and press <kbd>&lt;</kbd> to go back to the rack.</span></li>
         </ol>
-        <p class="tip"><strong>Mistake?</strong> <kbd>Cmd</kbd>+<kbd>Z</kbd> in Live undoes the last step. The pattern lives in the clip, so saving the set saves it.<br>
+        <p class="tip"><strong>Mistake?</strong> <kbd>Cmd</kbd>+<kbd>Z</kbd> (<kbd>Ctrl</kbd>+<kbd>Z</kbd> on Windows) in Live undoes the last step. The pattern lives in the clip, so saving the set saves it.<br>
         <strong>Want more bars?</strong> Hold <kbd>Record</kbd> and press <kbd>&gt;</kbd> to add a bar, or <kbd>&lt;</kbd> to remove one. The pads follow the playhead, so each bar shows up as it plays. To edit one ahead of time, press <kbd>&gt;</kbd>.</p>
       </article>
 
@@ -463,7 +463,7 @@
           <tr><td>Play notes outside the scale</td><td>Preset 3, <kbd>PAD BANK</kbd>, press the blue key</td></tr>
           <tr><td>Play a whole chord with one pad</td><td>Preset 4, with the track armed</td></tr>
           <tr><td>Record into the Arrangement</td><td><kbd>Record</kbd> (presets 1, 3 and 4)</td></tr>
-          <tr><td>Undo</td><td><kbd>Cmd</kbd>+<kbd>Z</kbd> in Live</td></tr>
+          <tr><td>Undo</td><td><kbd>Cmd</kbd>+<kbd>Z</kbd> in Live (<kbd>Ctrl</kbd>+<kbd>Z</kbd> on Windows)</td></tr>
         </tbody>
       </table>
     </div>
@@ -631,7 +631,7 @@
       <span class="eyebrow">Preset 2</span>
       <h2>Step sequencer</h2>
     </div>
-    <p>This mode edits the selected MIDI clip directly. Nothing is stored on the controller, so saving the Live set saves the pattern and <kbd>Cmd</kbd>+<kbd>Z</kbd> undoes a step.</p>
+    <p>This mode edits the selected MIDI clip directly. Nothing is stored on the controller, so saving the Live set saves the pattern and <kbd>Cmd</kbd>+<kbd>Z</kbd> (<kbd>Ctrl</kbd>+<kbd>Z</kbd> on Windows) undoes a step.</p>
 
     <p>It needs the <code>MVave_SMC_STEPSEQ</code> row from <a href="#setup-ports">Setup</a>.</p>
 
@@ -810,7 +810,7 @@
     </div>
 
     <h3 id="keys-note-repeat">Note repeat</h3>
-    <p>The controller's note repeat follows the keyboard: hold a pad and it repeats the note that pad plays, in the current key, scale, octave and layout. The repeats come out quieter than a normal hit, because the controller sends them at a low velocity of its own. Note repeat needs <code>MVave_SMC_KNOBS</code> loaded, and <strong>Track</strong> off for <code>SINCO SMC-PAD-Master</code>; see <a href="#setup-ports">Setup</a>.</p>
+    <p>The controller's note repeat follows the keyboard: hold a pad and it repeats the note that pad plays, in the current key, scale, octave and layout. The repeats come out quieter than a normal hit, because the controller sends them at a low velocity of its own. Note repeat needs <code>MVave_SMC_KNOBS</code> loaded, and <strong>Track</strong> off for <code>SINCO SMC-PAD-Master</code> (Windows: <code>MIDIIN2 (SMC-PAD)</code>); see <a href="#setup-ports">Setup</a>.</p>
 
     <h3 id="keys-the-knobs">The knobs</h3>
     <p>On this preset the knobs control the device that has Live's blue hand: click a device (or its track) and the knobs follow. They're the parameters Ableton picked for its own controllers, so Live's instruments and effects work with no mapping.</p>
@@ -906,7 +906,7 @@
       <div class="explain">
         <h3 id="drums-recording-a-beat">Recording a beat</h3>
         <p>Arm the track and click the record button in an empty clip slot, or use Live's session record. (On preset 1 an empty pad makes an empty 1-bar clip rather than recording: play it and turn on Session Record to record into it.) Or just play, then press Live's <strong>Capture MIDI</strong> button. Velocities go in as you played them.</p>
-        <p>To tidy the timing afterwards, select the notes in Live's clip view and press <kbd>Cmd</kbd>+<kbd>U</kbd> to quantise.</p>
+        <p>To tidy the timing afterwards, select the notes in Live's clip view and press <kbd>Cmd</kbd>+<kbd>U</kbd> (<kbd>Ctrl</kbd>+<kbd>U</kbd> on Windows) to quantise.</p>
       </div>
     </div>
   </section>
@@ -918,7 +918,7 @@
       <h2>Setup: which file goes where</h2>
     </div>
     <p>Three things need to be in place: the presets on the controller, the scripts in Live's folder, and the ports in Live's settings. Paths below are inside the project folder unless they start with <code>/</code>.</p>
-    <p>These steps are for this Mac's setup. On Windows, or with Live's User Library somewhere else, follow <a href="https://github.com/puppi3-music/mvave-smc-pad-ableton/blob/main/docs/INSTALL.md">INSTALL.md</a> instead: it has the paths and port names for both, and how to check it worked.</p>
+    <p>The steps below cover macOS and Windows. <a href="https://github.com/puppi3-music/mvave-smc-pad-ableton/blob/main/docs/INSTALL.md">INSTALL.md</a> has the same steps in more detail, how to check it worked, and what to do if your port names differ.</p>
 
     <h3 id="setup-presets">1. Presets on the controller</h3>
     <p>Open MidiSuite, M-Vave's editor. Import each file and write it to its preset slot.</p>
@@ -936,7 +936,12 @@
     <p>Only load files from <code>presets</code>. The <code>reference</code> folder holds the files the presets are built from (<code>tools/make_presets.py</code> rebuilds them) and the original editor exports.</p>
 
     <h3 id="setup-scripts">2. Scripts in Live's folder</h3>
-    <p>Copy these three folders into <code>/Users/Shared/Ableton/User Library/Remote Scripts/</code>, replacing any older copies, then restart Live:</p>
+    <p>Copy these three folders into Live's Remote Scripts folder, replacing any older copies, then restart Live:</p>
+    <ul>
+      <li><strong>macOS:</strong> <code>Remote Scripts</code> inside your User Library, the folder set in Live's <strong>Settings → Library</strong>. By default that's <code>~/Music/Ableton/User Library/Remote Scripts/</code>.</li>
+      <li><strong>Windows:</strong> <code>%APPDATA%\Ableton\Live&nbsp;&lt;version&gt;\Preferences\User Remote Scripts\</code>, where <code>&lt;version&gt;</code> is the folder that's there, such as <code>Live 12.1.5</code>.</li>
+    </ul>
+    <p>Copy the folders themselves, not their contents: you should end up with <code>…/Remote Scripts/MVave_SMC_PAD/__init__.py</code>.</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Folder</th><th>Runs</th></tr></thead>
@@ -950,18 +955,18 @@
     <p>All three are needed: <code>MVave_SMC_KNOBS</code> also passes preset 2's drum pads and note repeat to your tracks, and runs the knobs on presets 3 and 4.</p>
 
     <h3 id="setup-ports">3. Ports in Live</h3>
-    <p>Open <strong>Settings → Link, Tempo &amp; MIDI</strong>. Fill three Control Surface rows:</p>
+    <p>Open <strong>Settings → Link, Tempo &amp; MIDI</strong> (<strong>Preferences</strong> on Windows). Fill three Control Surface rows, with the same port as input and output on each:</p>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Control Surface</th><th>Input</th><th>Output</th></tr></thead>
+        <thead><tr><th>Control Surface</th><th>Input and output, macOS</th><th>Input and output, Windows</th></tr></thead>
         <tbody>
-          <tr><td><code>MVave_<wbr>SMC_<wbr>PAD</code></td><td><code>SINCO Port&nbsp;3</code></td><td><code>SINCO Port&nbsp;3</code></td></tr>
-          <tr><td><code>MVave_<wbr>SMC_<wbr>KNOBS</code></td><td><code>SINCO SMC-PAD-Private</code></td><td><code>SINCO SMC-PAD-Private</code></td></tr>
-          <tr><td><code>MVave_<wbr>SMC_<wbr>STEPSEQ</code></td><td><code>SINCO Port&nbsp;3</code></td><td><code>SINCO Port&nbsp;3</code></td></tr>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>PAD</code></td><td><code>SINCO Port&nbsp;3</code></td><td><code>MIDIIN3 (SMC-PAD)</code> / <code>MIDIOUT3 (SMC-PAD)</code></td></tr>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>KNOBS</code></td><td><code>SINCO SMC-PAD-Private</code></td><td><code>SMC-PAD</code> (the first port)</td></tr>
+          <tr><td><code>MVave_<wbr>SMC_<wbr>STEPSEQ</code></td><td><code>SINCO Port&nbsp;3</code></td><td><code>MIDIIN3 (SMC-PAD)</code> / <code>MIDIOUT3 (SMC-PAD)</code></td></tr>
         </tbody>
       </table>
     </div>
-    <p>Then in the MIDI Ports list below the table, find the input <code>SINCO SMC-PAD-Master</code>, switch on <strong>Remote</strong> (so you can still map knobs with <kbd>Cmd</kbd>+<kbd>M</kbd>) and leave <strong>Track</strong> <em>off</em>. Leave it out of the Control Surface rows.</p>
+    <p>Then in the MIDI Ports list below the table, find the input <code>SINCO SMC-PAD-Master</code> (Windows: <code>MIDIIN2 (SMC-PAD)</code>), switch on <strong>Remote</strong> (so you can still map knobs with <kbd>Cmd</kbd>+<kbd>M</kbd>, or <kbd>Ctrl</kbd>+<kbd>M</kbd> on Windows) and leave <strong>Track</strong> <em>off</em>. Leave it out of the Control Surface rows.</p>
     <p>Preset 2's drum pads and note repeat reach your tracks through <code>MVave_SMC_KNOBS</code>, on MIDI channel 2. With Track on they'd play twice, and note repeat would ignore the keyboard's key and octave.</p>
   </section>
 
@@ -986,7 +991,7 @@
       </div>
       <div class="panel">
         <h3 id="trouble-drum-pads-or-keyboard-make-no-sound">Drum pads or keyboard make no sound</h3>
-        <p>Check the track is armed or set to Monitor In, with its input on <strong>All Ins</strong>, and that a synth set to one MIDI channel listens on channel 2 (or omni). Drum pads, note repeat and preset 3's knobs need <code>MVave_SMC_KNOBS</code> on input <code>SINCO SMC-PAD-Private</code>. The keyboard needs <code>MVave_SMC_PAD</code> in a Control Surface row on <code>SINCO Port 3</code>; if its pads stay dark, check that row and restart Live.</p>
+        <p>Check the track is armed or set to Monitor In, with its input on <strong>All Ins</strong>, and that a synth set to one MIDI channel listens on channel 2 (or omni). Drum pads, note repeat and preset 3's knobs need <code>MVave_SMC_KNOBS</code> on input <code>SINCO SMC-PAD-Private</code> (Windows: <code>SMC-PAD</code>). The keyboard needs <code>MVave_SMC_PAD</code> in a Control Surface row on <code>SINCO Port 3</code> (Windows: <code>MIDIIN3 (SMC-PAD)</code>); if its pads stay dark, check that row and restart Live.</p>
       </div>
       <div class="panel">
         <h3 id="trouble-empty-pads-show-white">Empty pads show white</h3>
@@ -994,7 +999,7 @@
       </div>
       <div class="panel">
         <h3 id="trouble-old-lights-stay-after-switching">Old lights stay after switching</h3>
-        <p>The pads should redraw within about a fifth of a second of a preset switch or <kbd>PAD BANK</kbd>, or the moment you touch a pad. That needs <code>MVave_SMC_KNOBS</code> with both input and output on <code>SINCO SMC-PAD-Private</code>: it asks the controller which preset is up about five times a second. If they don't redraw, check that output isn't None, then the input, then restart Live.</p>
+        <p>The pads should redraw within about a fifth of a second of a preset switch or <kbd>PAD BANK</kbd>, or the moment you touch a pad. That needs <code>MVave_SMC_KNOBS</code> with both input and output on <code>SINCO SMC-PAD-Private</code> (Windows: <code>SMC-PAD</code>): it asks the controller which preset is up about five times a second. If they don't redraw, check that output isn't None, then the input, then restart Live.</p>
         <p>The steady blinking of Live's MIDI light is those questions. It's a few hundred bytes a second, nothing the USB connection notices.</p>
       </div>
       <div class="panel">
@@ -1009,7 +1014,7 @@
   </section>
 
   <footer>
-    Set up for one specific configuration: preset 1 <code>preset1-launcher-mixer.spc</code>, preset 2 <code>preset2-sequencer-drums.spc</code>, preset 3 <code>preset3-keys.spc</code>, preset 4 <code>preset4-chords.spc</code>, scripts in <code>/Users/Shared/Ableton/User Library/Remote Scripts/</code>.
+    Presets: 1 <code>preset1-launcher-mixer.spc</code>, 2 <code>preset2-sequencer-drums.spc</code>, 3 <code>preset3-keys.spc</code>, 4 <code>preset4-chords.spc</code>. Scripts: <code>MVave_SMC_PAD</code>, <code>MVave_SMC_KNOBS</code> and <code>MVave_SMC_STEPSEQ</code> in Live's Remote Scripts folder (<a href="#setup">Setup</a>).
   </footer>
 
 </div>
