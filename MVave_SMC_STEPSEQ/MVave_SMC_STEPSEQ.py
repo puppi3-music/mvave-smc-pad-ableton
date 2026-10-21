@@ -436,11 +436,14 @@ class MVave_SMC_STEPSEQ(ControlSurface):
             pass
 
     @_guarded('rebind')
-    def _rebind(self):
+    def _rebind(self, candidate=None):
+        # candidate: a clip just made or picked up from a pad press; otherwise
+        # the selected clip.
         self._detach_clip()
         clip = None
         try:
-            candidate = self.song().view.detail_clip
+            if candidate is None:
+                candidate = self.song().view.detail_clip
             if candidate is not None and candidate.is_midi_clip:
                 clip = candidate
         except Exception:
@@ -569,12 +572,67 @@ class MVave_SMC_STEPSEQ(ControlSurface):
         # The device's VELOCITY setting, once known, stands instead.
         strike = velocity if (USE_STRIKE_VELOCITY and velocity
                               and self._velocity_setting is None) else None
+        if self._clip is None and not self._make_clip():
+            return
         if self._view == VIEW_FOCUS:
             self.toggle_step(self._lane, self._bank * 16 + index, strike)
         else:
             row, col = divmod(index, 4)
             self.toggle_step(self._lane_window + (3 - row), self._page * 4 + col,
                              strike)
+
+    def _make_clip(self):
+        """A step pad pressed with no clip bound: bind the selected track's
+        highlighted slot's MIDI clip, making an empty one there first if the
+        slot is empty. True if a clip is now bound.
+
+        Mirrors preset 1's empty pad, which mirrors a double-click on the slot:
+        selected, clip view open, not launched -- play launches it.
+        """
+        if NEW_CLIP_BARS <= 0:
+            return False
+        song = self.song()
+        track = song.view.selected_track
+        slot = getattr(song.view, 'highlighted_clip_slot', None)
+        if (slot is None or not getattr(track, 'has_midi_input', False)
+                or getattr(track, 'is_foldable', False)):
+            self._message('Steps: select a MIDI track to make a clip')
+            return False
+        made = False
+        if slot.has_clip:
+            clip = slot.clip
+            if not clip.is_midi_clip:
+                self._message('Steps: that slot holds an audio clip')
+                return False
+        else:
+            beats_per_bar = (song.signature_numerator * 4.0
+                             / song.signature_denominator)
+            try:
+                slot.create_clip(NEW_CLIP_BARS * beats_per_bar)
+            except Exception:
+                # A frozen track refuses, and so does anything else Live
+                # will not put a clip on.
+                self._message('Steps: Live would not make a clip here')
+                return False
+            clip = slot.clip
+            made = True
+        # Selecting it fires the detail_clip listener, which binds it. Bound
+        # directly as well, in case Live defers that listener.
+        song.view.detail_clip = clip
+        if self._clip is not clip:
+            self._rebind(clip)
+        try:
+            self.application().view.show_view('Detail/Clip')
+        except Exception:
+            pass
+        if self._clip is not clip:
+            return False
+        self._log('%s %s' % ('made' if made else 'picked up',
+                             _clip_label(clip)))
+        if made:
+            self._message('Steps: new %d-bar clip on "%s"'
+                          % (NEW_CLIP_BARS, getattr(track, 'name', '?')))
+        return True
 
     def _on_button(self, number, pressed):
         if number == BTN_MOD:

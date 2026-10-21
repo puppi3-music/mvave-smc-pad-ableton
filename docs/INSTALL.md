@@ -302,6 +302,7 @@ MVave_SMC_KNOBS: first preset 3 knob CC -- 21 value 65 -> slot 1
 | `KNOBS: loaded.` | The knob script was found and built. The bracket says whether Live's parameter-bank table was found for preset 3 (`no Live bank table` means Live 11, or a Live without it) | At startup |
 | `STEPSEQ: loaded.` | The sequencer was found and built, and which notes it listens for | At startup |
 | `clip -> …` | The clip the sequencer is editing, or `no clip` | At startup, and whenever that changes |
+| `made …` / `picked up …` | A step pad pressed with no clip made a new clip in the selected slot, or picked up the MIDI clip there | On that press |
 | `drum rack -> …` | The Drum Rack the sequencer's colours and drum picker read, or `none` | When the sequencer first draws, and whenever that changes |
 | `preset 2 up` / `preset 2 away, holding …` | Whether the sequencer follows clicks in Live (preset 2 up) or holds its clip (another preset up) | On each switch to or from preset 2 |
 | `device -> …` | The macro knobs have a device to control | **Only once the selected track changes.** Click a track before deciding the macros are broken |
@@ -481,7 +482,7 @@ Everything the pad script maps lives in this one file. `-1` means unassigned.
 | `CHORDS_*` | Preset 4: its notes and LEDs, its octave, the Chord device it adds (`CHORDS_DEVICE`, `''` to manage none) and that device's shape (`CHORDS_SHIFTS`, scale steps above the root: `(2, 4)` triads, `(2, 4, 6)` sevenths). |
 | `BUTTONCHANNEL`, `SLIDERCHANNEL` | MIDI channel, 0-based: `0` is channel 1. |
 | `MESSAGETYPE` | `0` for notes, `1` for CCs. |
-| `NEW_CLIP_BARS` | Length in bars of the empty clip a pad makes on an empty slot of a MIDI track, like double-clicking the slot (`1`). `0` restores the old press: record if armed, else stop the track. |
+| `NEW_CLIP_BARS` | Length in bars of the empty clip a pad makes on an empty slot of a MIDI track, like double-clicking the slot (`1`). `0` restores the old press: record if armed, else stop the track. The step sequencer has its own `NEW_CLIP_BARS`, in `MVave_SMC_STEPSEQ/MIDI_Map.py`, for the clip its first pad press makes ([STEPSEQ.md](STEPSEQ.md) §1). |
 | `INTRO_ENABLED` and the other `INTRO_*` | The startup intro. `INTRO_ENABLED = False` turns it off. `INTRO_STYLE` picks `'flag'` (a waving trans flag, the default) or `'rainbow'`. `INTRO_FLAG` holds the flag's five stripe colours, bottom to top, and `INTRO_WAVE_TICKS` how many ticks one ripple takes (10 is one a second). `INTRO_COLOUR_TICKS` sets the rainbow's speed (1 is the fastest that shows every colour; 2 is half speed). |
 | `MODIFIER` | Disabled (`-1`). Set to a button note, the arrows bank the session box through scenes while it is held, at the cost of that button's normal job. |
 | Everything else | Standard slots from the template this is built on: sends, scene launch, device banks. Nearly all `-1`. |

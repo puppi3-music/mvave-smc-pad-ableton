@@ -256,6 +256,29 @@ class FakeView(FakeListenable):
         return self._has('track', cb)
 
 
+class FakeClipSlot(object):
+    """A Session slot, as the step pads make a clip in one."""
+
+    def __init__(self, track, clip=None, refuse=False):
+        self.canonical_parent = track
+        self.clip = clip
+        self.refuse = refuse
+        self.created = []
+
+    @property
+    def has_clip(self):
+        return self.clip is not None
+
+    def create_clip(self, length):
+        if self.refuse:
+            raise RuntimeError('frozen track')
+        assert self.clip is None, 'Live raises on a slot that has a clip'
+        self.created.append(length)
+        self.clip = FakeClip(loop_start=0.0, loop_end=length)
+        self.clip.canonical_parent = self
+        self.clip.name = ''
+
+
 class FakeChain(object):
     def __init__(self, devices):
         self.devices = list(devices)
@@ -1652,6 +1675,93 @@ class Lifecycle(SeqTest):
 
 
 # ----------------------------------------------------------------------- midi
+
+class NewClip(SeqTest):
+    """A step pad with no clip on the pads makes one, or picks one up."""
+
+    def setUp(self):
+        SeqTest.setUp(self)
+        self.song.signature_numerator, self.song.signature_denominator = 4, 4
+        self.track = FakeTrack()
+        self.track.name = 'Drums'
+        self.track.has_midi_input = True
+        self.track.is_foldable = False
+        self.slot = FakeClipSlot(self.track)
+        self.song.view.selected_track = self.track
+        self.song.view.highlighted_clip_slot = self.slot
+        self.song.view.select(None)
+        self.assertIsNone(self.seq._clip)
+
+    def test_a_pad_on_an_empty_slot_makes_a_bar_and_writes_the_step(self):
+        self.press(5)
+        self.assertEqual(self.slot.created, [4.0])
+        self.assertIs(self.seq._clip, self.slot.clip)
+        self.assertIs(self.song.view.detail_clip, self.slot.clip)
+        self.assertEqual([(n.pitch, n.start_time) for n in self.slot.clip.notes],
+                         [(C.DEFAULT_LANE, 5 * C.STEP)])
+        self.assertTrue(any('new 1-bar clip' in m for m in self.seq.messages))
+
+    def test_the_next_press_edits_that_clip_rather_than_making_another(self):
+        self.press(5)
+        self.press(6)
+        self.assertEqual(self.slot.created, [4.0])
+        self.assertEqual(len(self.slot.clip.notes), 2)
+
+    def test_a_bar_follows_the_time_signature(self):
+        self.song.signature_numerator, self.song.signature_denominator = 3, 4
+        self.press(0)
+        self.assertEqual(self.slot.created, [3.0])
+
+    def test_an_existing_midi_clip_in_the_slot_is_picked_up_not_replaced(self):
+        existing = FakeClip(loop_start=0.0, loop_end=8.0)
+        self.slot.clip = existing
+        self.press(2)
+        self.assertEqual(self.slot.created, [])
+        self.assertIs(self.seq._clip, existing)
+        self.assertEqual(len(existing.notes), 1)
+
+    def test_an_audio_clip_in_the_slot_is_left_alone(self):
+        self.slot.clip = FakeClip(is_midi=False)
+        self.press(2)
+        self.assertIsNone(self.seq._clip)
+
+    def test_an_audio_or_group_track_gets_no_clip(self):
+        self.track.has_midi_input = False
+        self.press(0)
+        self.track.has_midi_input, self.track.is_foldable = True, True
+        self.press(0)
+        self.assertEqual(self.slot.created, [])
+        self.assertIsNone(self.seq._clip)
+
+    def test_no_slot_return_or_master_gets_no_clip(self):
+        self.song.view.highlighted_clip_slot = None
+        self.press(0)
+        self.assertIsNone(self.seq._clip)
+
+    def test_a_refused_create_does_not_take_the_script_down(self):
+        self.slot.refuse = True
+        self.press(0)
+        self.assertIsNone(self.seq._clip)
+        self.assertTrue(any('would not make' in m for m in self.seq.messages))
+
+    def test_mod_and_pad_picks_a_lane_without_making_a_clip(self):
+        self.button(C.BTN_MOD, True)
+        self.press(12)
+        self.button(C.BTN_MOD, False)
+        self.assertEqual(self.slot.created, [])
+
+    def test_switched_off_with_zero_bars(self):
+        self.addCleanup(setattr, SEQ_MODULE, 'NEW_CLIP_BARS', SEQ_MODULE.NEW_CLIP_BARS)
+        SEQ_MODULE.NEW_CLIP_BARS = 0
+        self.press(0)
+        self.assertEqual(self.slot.created, [])
+
+    def test_a_selected_clip_is_edited_and_no_clip_is_made(self):
+        self.song.view.select(self.clip)
+        self.press(0)
+        self.assertEqual(self.slot.created, [])
+        self.assertEqual(len(self.clip.notes), 1)
+
 
 class MidiPlumbing(SeqTest):
 

@@ -350,9 +350,9 @@
         </div>
         <ol class="steps">
           <li><span>In Live's browser, open <strong>Drums</strong> and drag any Drum Rack kit onto an empty MIDI track.</span></li>
-          <li><span>In Session view, <strong>double-click an empty clip slot</strong> on that track. Live makes a one-bar clip and selects it. One bar is 16 steps, one per pad.</span></li>
+          <li><span>In Session view, <strong>click an empty clip slot</strong> on that track to select it. (No need to make a clip: the first pad you press on preset 2 makes a one-bar clip there. One bar is 16 steps, one per pad.)</span></li>
           <li><span>Switch the controller to <strong>preset 2</strong>.
-            <span class="see">dark pads: the clip is empty. Steps read left to right, top to bottom, like text, so the left-hand column is the four beats of the bar (steps 1, 5, 9 and 13).</span></span></li>
+            <span class="see">dark pads: nothing is programmed yet. Steps read left to right, top to bottom, like text, so the left-hand column is the four beats of the bar (steps 1, 5, 9 and 13).</span></span></li>
           <li><span><strong>Kick.</strong> Hold <kbd>Record</kbd> and check the bottom-left pad is white: that's C1, the kick in almost every kit. If it isn't white, press it. Let go of <kbd>Record</kbd>, then press the four pads of the left-hand column.
             <span class="with-mini"><span class="mini" aria-label="Kick on steps 1, 5, 9 and 13"><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span><span class="k"></span><span></span><span></span><span></span></span><span class="see">four red-pink pads down the left side, a four-on-the-floor kick.</span></span></span></li>
           <li><span>Press <kbd>Play</kbd> to launch the clip.
@@ -454,7 +454,7 @@
           <tr><td>See other tracks or rows on the pads</td><td>Preset 1, knob bank 2, the bottom two knobs</td></tr>
           <tr><td>Pick a track</td><td><kbd>&lt;</kbd> <kbd>&gt;</kbd> (presets 1, 3 and 4)</td></tr>
           <tr><td>Tweak a device</td><td>Knob bank 1 turns the selected track's macros. Hold <kbd>Stop</kbd> + <kbd>&lt;</kbd> <kbd>&gt;</kbd> for the next device</td></tr>
-          <tr><td>Program drums step by step</td><td>Preset 2, with a MIDI clip selected</td></tr>
+          <tr><td>Program drums step by step</td><td>Preset 2, with a MIDI clip selected. Or select an empty slot on a MIDI track and just press a pad: it makes a 1-bar clip</td></tr>
           <tr><td>Play or stop the pattern</td><td>Preset 2, press <kbd>Play</kbd>. Hold <kbd>Record</kbd> + <kbd>Play</kbd> to stop everything</td></tr>
           <tr><td>Choose which drum I'm programming</td><td>Preset 2, hold <kbd>Record</kbd> and press the drum's pad</td></tr>
           <tr><td>See four drums at once</td><td>Preset 2, press <kbd>Stop</kbd></td></tr>
@@ -638,8 +638,8 @@
 
     <h3 id="sequencer-making-a-beat">Making a beat</h3>
     <ol class="steps">
-      <li><span>Put a <strong>Drum Rack</strong> on a MIDI track and create an empty clip on it: double-click an empty slot, or press an empty pad in its column on preset 1 (a 1-bar clip).</span></li>
-      <li><span><strong>Select the clip</strong> so its notes show in Live's clip view.</span></li>
+      <li><span>Put a <strong>Drum Rack</strong> on a MIDI track and <strong>select a clip</strong> on it, or just click an empty slot on it.</span></li>
+      <li><span>No clip yet? Skip making one: with no clip selected, the first step pad you press on preset 2 makes an empty 1-bar clip in that track's selected slot, opens it and sets the step. If the slot already holds a MIDI clip, the sequencer picks that up instead.</span></li>
       <li><span>Switch the controller to <strong>preset 2</strong> with <kbd>Shift</kbd> + its pad.</span></li>
       <li><span>Hold <kbd>Record</kbd>: the pads show the drums you can pick, laid out like the Drum Rack (bottom-left is C1, usually the kick). The drum you're editing is white. Press a pad to choose another.</span></li>
       <li><span>Let go, then press pads to switch steps on and off. Each pad is one 16th note, reading left to right and top to bottom.</span></li>
@@ -699,7 +699,7 @@
       <table>
         <thead><tr><th>Press or turn</th><th>What happens</th></tr></thead>
         <tbody>
-          <tr><td>Any pad</td><td>Switches that step on or off for the current drum.</td></tr>
+          <tr><td>Any pad</td><td>Switches that step on or off for the current drum. With no clip selected, it first makes an empty 1-bar clip in the selected track's selected slot (or picks up the MIDI clip already there) and opens it. The new clip doesn't start playing: press <kbd>Play</kbd>.</td></tr>
           <tr><td>Hold <kbd>Record</kbd></td><td>Shows the drums instead of the steps, with the current one white. See above.</td></tr>
           <tr><td>Hold <kbd>Record</kbd> + pad</td><td>Chooses which drum you're editing.</td></tr>
           <tr><td>Hold <kbd>Record</kbd> + <kbd>&lt;</kbd> <kbd>&gt;</kbd></td><td>Makes the clip one bar shorter or longer, from 1 to 16 bars. Live's status bar shows the new length. New bars start empty.</td></tr>
@@ -988,7 +988,7 @@
       </div>
       <div class="panel">
         <h3 id="trouble-sequencer-pads-stay-dark">Sequencer pads stay dark</h3>
-        <p>Select a MIDI clip first. The sequencer edits whichever clip is selected, and with none selected it has nothing to show.</p>
+        <p>Select a MIDI clip first. The sequencer edits whichever clip is selected, and with none selected it has nothing to show. Or press a pad: on a MIDI track it makes a 1-bar clip in the selected slot. If nothing happens, the status bar says why: the selected track is an audio, group or return track, or the slot holds an audio clip.</p>
       </div>
       <div class="panel">
         <h3 id="trouble-drum-pads-or-keyboard-make-no-sound">Drum pads or keyboard make no sound</h3>

@@ -1,7 +1,7 @@
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-10-21'
+SCRIPT_REVISION = '2026-10-21a'
 
 # Hardware and layout constants for the SMC-PAD step sequencer.
 #
@@ -291,6 +291,15 @@ STEPS_MAX = 256             # 16 bars of 16ths -- a safety ceiling, not the
                             # working length. The visible window follows the
                             # playhead, so the clip's own loop decides how many
                             # pages there are. Edits stay inside the loop.
+
+# A step pad pressed with no clip on the pads makes one: an empty clip this
+# many bars long, in the song's time signature, in the selected track's
+# highlighted slot (the selected scene's row in Session view), then selects it
+# and opens the clip view -- what double-clicking the slot does, the same as an
+# empty pad on preset 1. If that slot already holds a MIDI clip, it is selected
+# instead and nothing is made. The press then writes its step as usual.
+# Audio, group, return and master tracks are left alone. 0 switches it off.
+NEW_CLIP_BARS = 1
 
 # Move the visible 16 steps to wherever the playhead is, so a 16, 32 or 64-step
 # loop needs no manual paging. Paging by hand switches this off for the rest of

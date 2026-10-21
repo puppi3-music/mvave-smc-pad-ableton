@@ -4,8 +4,9 @@ Ableton Live Remote Scripts that give an **M-Vave SMC-PAD** four jobs, one per
 preset on the controller:
 
 1. a Launchpad-style **clip launcher**, with a mixer one button press away;
-2. a Push-style **step sequencer** that edits the selected MIDI clip, with
-   velocity-sensitive drum pads one button press away;
+2. a Push-style **step sequencer** that edits the selected MIDI clip (or makes
+   one on the first pad press), with velocity-sensitive drum pads one button
+   press away;
 3. a Launchpad-style **scale keyboard** for playing a synth;
 4. a **chord keyboard**: every pad a chord of the key.
 

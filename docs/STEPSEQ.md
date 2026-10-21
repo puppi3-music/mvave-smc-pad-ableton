@@ -43,7 +43,7 @@ the brief and the hardware disagreed.
 
 | Control | Focus view | Overview |
 |---|---|---|
-| Pads | toggle a 16th note in the current lane | toggle a step at (lane row, beat column); lowest lane on the **bottom** row |
+| Pads | toggle a 16th note in the current lane; **with no clip, the first press makes one** (below) | toggle a step at (lane row, beat column); lowest lane on the **bottom** row; with no clip, the same |
 | MOD held | **the pads show the lane picker** (below) instead of steps, and the status bar names the lane | same |
 | MOD + pad | select the lane, drum-rack layout, and select that drum's pad in the track's Drum Rack | same, and scrolls the lane window so it is the bottom row |
 | `<` `>` | page through the steps by 16; lit when there is a page that way | page four steps at a time |
@@ -77,6 +77,18 @@ overview and the arrows. Inferred, not yet seen working.
 Whether the button LEDs take the pad palette or are simply on/off is unmeasured —
 `BTN_LED_ON` is a velocity either way, so pick from the palette in
 [HARDWARE.md](HARDWARE.md) 3.2 if they turn out to be colour capable.
+
+**No clip? The first pad makes one** (since 2026-10-21). A step pad pressed
+with no clip on the pads looks at the selected track's highlighted slot (the
+selected scene's row in Session view). If the slot holds a MIDI clip, that clip
+is selected and edited; if it is empty, a `NEW_CLIP_BARS`-bar clip (1 bar, in
+the song's time signature) is made there first, like double-clicking the slot
+or preset 1's empty pad. Either way the clip is selected, the clip view opens
+and the press writes its step, so a beat starts with one tap. The new clip is
+not launched: play launches it. Audio, group, return and master tracks get
+nothing (the status bar says why), and MOD + pad never makes a clip. In
+Arrangement view it is still a Session clip. The log says `made …` or
+`picked up …`. `NEW_CLIP_BARS = 0` switches it off.
 
 **The clip is pinned while you're away.** `MVave_SMC_KNOBS` reads the preset
 from the controller's status message (HARDWARE.md 3.6) and calls
@@ -492,8 +504,9 @@ After that it names the clip it is editing whenever that changes
 (`clip -> "Beat 1" on track "Drums"`, or `clip -> no clip`), and each switch
 to or from preset 2 (`preset 2 up, following the selection` /
 `preset 2 away, holding …`), and the Drum Rack it reads
-(`drum rack -> "Kit" on track "Drums"`, or `none on track …`), so "why is it still on that clip?" can be read
-straight from the log.
+(`drum rack -> "Kit" on track "Drums"`, or `none on track …`), and a clip a
+step pad made or picked up with no clip bound (`made …` / `picked up …`), so
+"why is it still on that clip?" can be read straight from the log.
 
 It also logs anything it receives that `MIDI_Map.py` does not describe, once per
 signature — but **do not use that to find out what your unit sends.**
@@ -517,16 +530,19 @@ controller just stops responding and the only evidence is a traceback in
 `Log.txt`. Grid arithmetic is a punishing thing to debug through that loop.
 
 It covers the coordinate maps, the step bucketing, the write path, LED bytes and
-diffing, playhead gating, page clamping, re-binding, clip deletion, and the
-map file's own sanity. It cannot cover the hardware — note numbers, channels,
+diffing, playhead gating, page clamping, re-binding, clip deletion, making a
+clip on the first pad press, and the map file's own sanity. It cannot cover the hardware — note numbers, channels,
 the palette. That is section 5, on the device.
 
 ## 8. Deliberately not built
 
 From the brief's own out-of-scope list: per-step velocity editing, aftertouch
-ratchets, swing and nudge, auto-creating a clip when none is selected, note
-repeat, melodic and scale modes. (Preset 1 can make an empty clip, and preset 3
-is a scale keyboard, but neither is part of the sequencer.)
+ratchets, swing and nudge, note repeat, melodic and scale modes. (Preset 3 is
+a scale keyboard, but it is not part of the sequencer.)
+
+**Making a clip when none is selected was built after all** (2026-10-21): the
+first step pad pressed with no clip makes one in the selected slot, as preset
+1's empty pad does (section 1).
 
 **Reading drum-rack pad names was built after all** (2026-10-20): it gives the
 status bar its drum names and the steps their drum colours (section 1).
