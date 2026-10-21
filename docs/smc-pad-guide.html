@@ -357,7 +357,7 @@
         </div>
         <ol class="steps">
           <li><span>In Live's browser, open <strong>Drums</strong> and drag any Drum Rack kit onto an empty MIDI track.</span></li>
-          <li><span>In Session view, <strong>click an empty clip slot</strong> on that track to select it. (No need to make a clip: the first pad you press on preset 2 makes a one-bar clip there. One bar is 16 steps, one per pad.)</span></li>
+          <li><span>In Session view, <strong>click an empty clip slot</strong> on that track to select it. Your first pad press on preset 2 makes a one-bar clip there: 16 steps, one per pad.</span></li>
           <li><span>Switch the controller to <strong>preset 2</strong>.
             <span class="see">dark pads: nothing is programmed yet. Steps read left to right, top to bottom, like text, so the left-hand column is the four beats of the bar (steps 1, 5, 9 and 13).</span></span></li>
           <li><span><strong>Kick.</strong> Hold <kbd>Record</kbd> and check the bottom-left pad is white: that's C1, the kick in almost every kit. If it isn't white, press it. Let go of <kbd>Record</kbd>, then press the four pads of the left-hand column.
@@ -384,7 +384,7 @@
           <div class="flow-meta"><span class="chip">Preset 2 · <kbd>PAD BANK</kbd></span><span class="chip">About 2 minutes</span></div>
         </div>
         <ol class="steps">
-          <li><span><strong>Arm</strong> the drum track: click its arm button in Live, or use the mixer (<a href="#flow-jam">session 4</a>).</span></li>
+          <li><span><strong>Arm</strong> the drum track: click its arm button in Live, or on the controller: preset 1, <kbd>PAD BANK</kbd>, then the third-row pad in the track's column (it lights red).</span></li>
           <li><span>With the beat from session 1 playing, press <kbd>PAD BANK</kbd>.
             <span class="see">the pads go dark: they're now the Drum Rack's 16 pads, laid out as Live shows them, with C1 (usually the kick) bottom-left. They don't light, but they're velocity-sensitive: hit harder for louder.</span></span></li>
           <li><span>Play along. Hit a tom run at the end of the bar, or hold a hat pad with the controller's note repeat on for a roll (the repeats come out softer than a hit).</span></li>
@@ -402,7 +402,7 @@
         </div>
         <ol class="steps">
           <li><span>Put a synth on a new MIDI track, next to the drums. Any instrument works with the knobs: Live's own, a rack or a plugin.</span></li>
-          <li><span><strong>Arm</strong> the synth track. The keyboard always plays the armed track (or one set to Monitor <strong>In</strong>).</span></li>
+          <li><span><strong>Arm</strong> the synth track: click its arm button in Live, or on the controller: preset 1, <kbd>PAD BANK</kbd>, then the third-row pad in the track's column (it lights red). The keyboard always plays the armed track (or one set to Monitor <strong>In</strong>).</span></li>
           <li><span>Switch to <strong>preset 3</strong> and press <kbd>PAD BANK</kbd> to pick a key. For A minor: press <strong>A</strong> (second row from the top, second pad), then <strong>Scale ‹</strong> or <strong>Scale ›</strong> until Live's status bar names Minor. Live's own Scale setting changes to match. Press <kbd>PAD BANK</kbd> to play.
             <span class="see">blue pads on the root notes (A), purple on the fifths (E), white on every other note in the scale. Every pad is in key, so nothing you hit sounds wrong.</span></span></li>
           <li><span><strong>For a bassline</strong>, press <kbd>PAD BANK</kbd>, then <strong>Oct −</strong> once or twice (it shows turquoise, then light blue, then bright blue: the octave it will take you to next), and <kbd>PAD BANK</kbd> again. Start on the bottom-left root and move between it and the purple fifth.</span></li>
@@ -864,7 +864,7 @@
 
     <div class="note">
       <strong>If the knobs do nothing</strong>
-      <p>Click the device you want so it has the blue hand. If they still do nothing, import the current <code>preset3-keys.spc</code> again with MidiSuite: an older one sends knob messages this version doesn't use.</p>
+      <p>Click the device you want so it has the blue hand.</p>
     </div>
   </section>
 
@@ -1035,10 +1035,6 @@
         <h3 id="trouble-old-lights-stay-after-switching">Old lights stay after switching</h3>
         <p>The pads should redraw within about a fifth of a second of a preset switch or <kbd>PAD BANK</kbd>, or the moment you touch a pad. That needs <code>MVave_SMC_KNOBS</code> with both input and output on <code>SINCO SMC-PAD-Private</code> (Windows: <code>SMC-PAD</code>): it asks the controller which preset is up about five times a second. If they don't redraw, check that output isn't None, then the input, then restart Live.</p>
         <p>The steady blinking of Live's MIDI light is those questions. It's a few hundred bytes a second, nothing the USB connection notices.</p>
-      </div>
-      <div class="panel">
-        <h3 id="trouble-pads-launch-the-wrong-clips">Pads launch the wrong clips</h3>
-        <p>If every pad fires the clip three pads along and the last pads stay white, the controller holds a preset file from before 8 October 2026. Import all the files from <code>presets</code> again and save them to the controller.</p>
       </div>
       <div class="panel">
         <h3 id="trouble-chords-play-single-notes">Preset 4 plays single notes</h3>

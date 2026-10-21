@@ -185,8 +185,7 @@ are in **[docs/INSTALL.md](docs/INSTALL.md)**.
 > **The presets matter as much as the scripts.** The scripts expect the note,
 > CC and LED numbers those four files set up, with every encoder relative. A
 > factory-configured unit sends different numbers and will appear to do
-> nothing. If your pads launch the clip three pads along, the controller holds
-> a preset built before 8 October 2026: import the current files again.
+> nothing.
 
 The presets are generated: `tools/make_presets.py` builds all four from the
 launcher and sequencer sources in `reference/`.

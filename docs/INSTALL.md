@@ -354,12 +354,7 @@ in the launcher, no sound). These are the setup problems.
   `Remote Scripts/mvave-smc-pad-ableton/MVave_SMC_PAD/`. Live only scans direct
   children.
 
-### Pads launch the wrong clips, or empty pads stay white
-
-If every pad fires the clip three pads along and the last pads stay white, the
-controller holds a preset built before 8 October 2026, which put the pads in
-the wrong place in the file. Import all the files from `presets/`
-again.
+### Empty pads stay white
 
 A pad that shows white when it should be off means its LED number equals its
 note, which only happens with a preset that wasn't built by
