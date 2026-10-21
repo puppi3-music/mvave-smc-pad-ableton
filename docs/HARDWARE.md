@@ -305,19 +305,40 @@ which pads they could not easily tell apart. By eye again, so for choosing
 colours, not measurements.
 
 - **Easy to tell apart, all at once:** red 14, green 5, yellow 46, blue 21,
-  purple 24, absinth green 19, pale pink 28, violet 26, with orange 15 and
-  white 40 beside them. Those are the sequencer's eight drum colours and its
+  purple 24, absinth green 19, pale pink 28, violet 26, pale yellow-green 60,
+  mint-aqua 47, pastel pink-orange 16 and pastel orange 1, with orange 15 and
+  white 40 beside them. Those are the sequencer's twelve drum colours and its
   playhead's two (STEPSEQ.md §1).
 - **Blurred:** turquoise 6 and teal 20 with blue 21, and sky blue 62 with all
   three: the palette has one usable blue. Pink 56 with red 14; pink 12 with
   violet 26, and with pale pink 28; lime 4 with yellow 46; apricot 59 with
-  orange 15.
+  orange 15. Periwinkle 9, cornflower 63, pastel green 18, yellow-white 3 and
+  pale lilac 54 each looked like one of the fourteen above.
 - **Also apart:** pink 12 from red 14 and from purple 24; pale pink 28 from
   white 40; absinth 19 from green 5 and lime 4; purple 24 from violet 26 and
   blue 21.
 
-So about ten hues can share the grid at once. A design that needs more has
-to reuse one.
+So fourteen colours can share the grid at once, the last four of them pale.
+A design that needs more has to reuse one.
+
+Three ways to more colours were tried the same day and led nowhere:
+
+- **The MIDI channel.** Green 5 sent to each pad on its own channel, 1 to 16,
+  lit all sixteen the same green. Unlike some controllers, the channel sets
+  no brightness or blinking.
+- **Velocity 127 as the pad's own colour.** Each pad record in a preset holds
+  an RGB colour (5.2), and section 3.2's 127 was green when the pads were
+  configured green, so 127 might have shown that colour. With every pad
+  configured magenta (`f0 00 f0`, preset 1 as `make_presets.py` writes it),
+  126 and 127 both lit nothing, on their own and beside a lit pad. Sent to
+  the pads' own notes (1-16) instead of their LED numbers, since the first
+  test had the two equal, 127 lit nothing either.
+- **A command for the RGB or the palette.** MidiSuite 1.x's controller code
+  (`CUSBConnect`) has only flash read, write, erase and checksum commands,
+  and its `SmcPad` view uses two flash types: 4, the 12-byte state (3.6), and
+  5, the presets. There is no LED command and no stored palette, so the
+  palette is in the firmware and a pad's RGB changes only by rewriting its
+  preset, which a host-lit pad doesn't show anyway.
 
 ### 3.3 Turning a pad off requires note-on velocity 0
 
