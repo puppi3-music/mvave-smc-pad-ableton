@@ -1009,7 +1009,8 @@ diagnostics quoted are the exact strings to grep for if a future Live disagrees.
   `Shift1`–`Shift6` in semitones (`+2 st`) and `Shift1 Scale Degrees`–`Shift6
   Scale Degrees` (`0 sd`), plus `Velocity`, `Chance`, `Strum`, `Strum Tension`,
   `Strum Crescendo` and `Use Current Scale`. With Use Current Scale on, only the
-  Scale Degrees shifts play. Not yet heard: chords from the fixed set-up.
+  Scale Degrees shifts play. With those at 2 and 4, preset 4 plays chords in
+  key (heard by the user, 2026-10-20).
 
 ### Not verified
 

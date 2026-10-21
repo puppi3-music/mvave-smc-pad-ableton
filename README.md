@@ -246,11 +246,10 @@ adds it itself on Live 12.4 (`Track.insert_device`).
 - In the sequencer, added 2026-10-20: changing the clip length with Record +
   `<` `>`, skipping empty banks of a Drum Rack, drum colours in the picker, and
   the Stop and arrow LEDs ([STEPSEQ.md](docs/STEPSEQ.md) §1).
-- Preset 4, added 2026-10-20. Seen in Live: its lights, the preset switch (its
-  status byte reads 3) and the Chord device being added. Not yet heard: the
-  chords themselves, since the first version set the Chord device's semitone
-  shifts instead of its scale-degree ones. `Log.txt` lists every parameter of
-  a Chord device the script adds (`SMC-PAD chords: added Chord`).
+- Preset 4's key, scale and octave page, added 2026-10-20: its top-right pad
+  (Scale ›) sends note 122 and lights at LED 123, numbers no other preset has
+  used on this controller. The chords themselves work: heard in Live 12.4.6
+  on 2026-10-20.
 - Several `_Framework` behaviours that could not be checked outside Live are
   marked as such in the code and in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
