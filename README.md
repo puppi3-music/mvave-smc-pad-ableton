@@ -246,10 +246,6 @@ adds it itself on Live 12.4 (`Track.insert_device`).
 - In the sequencer, added 2026-10-20: changing the clip length with Record +
   `<` `>`, skipping empty banks of a Drum Rack, drum colours in the picker, and
   the Stop and arrow LEDs ([STEPSEQ.md](docs/STEPSEQ.md) §1).
-- Preset 4's key, scale and octave page, added 2026-10-20: its top-right pad
-  (Scale ›) sends note 122 and lights at LED 123, numbers no other preset has
-  used on this controller. The chords themselves work: heard in Live 12.4.6
-  on 2026-10-20.
 - Several `_Framework` behaviours that could not be checked outside Live are
   marked as such in the code and in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
