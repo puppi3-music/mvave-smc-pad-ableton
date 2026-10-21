@@ -313,6 +313,8 @@ playhead's amber and white were all easy to tell apart
 - Blue 21 is also the picker's blue (`COLOR_PICK_LOADED`), used only with
   `DRUM_COLORS` off.
 - The colours have not yet been seen in the sequencer in Live.
+- A darker red, or any colour outside the palette, needs the plain MIDI pads
+  in section 8 ("Full RGB pads").
 
 **Turning it off.** `DRUM_COLORS = False` brings back teal steps, the fixed
 overview rows (green, red-pink, blue, purple, bottom up) and the picker's
@@ -610,6 +612,17 @@ feature off by default is a feature nobody has tried. Running the sequencer in
 Live for the first time settled it immediately: with a 32-step loop and a 16-pad
 grid, manual paging is the whole interaction, and following makes loop length
 stop mattering. It defaults to **on**.
+
+**Full RGB pads were found possible and left for later** (2026-10-21). A
+pad's preset colour can be written live, any RGB, in about 1.4 ms and without
+wearing the flash, but only plain MIDI pads show it; the step pads, being
+host-lit, take the 14-colour palette only ([HARDWARE.md 3.2.3](HARDWARE.md)).
+Using it would mean making the step pads plain MIDI, reading them through
+`MVave_SMC_KNOBS` on port 1 (they would no longer arrive on port 3), keeping
+their notes out of armed tracks on port 2, and lighting every step by a
+sysex write on `SMC-PAD-Private` instead of a note-on. It would also make the
+pads velocity-sensitive. Before building it: put one preset's pads on plain
+MIDI and check what a press does to the colour and where the notes go.
 
 Per-step velocity is also implemented (`USE_STRIKE_VELOCITY`) but **inert on this
 hardware**: only port-3 banks light their pads, and only they are fixed-velocity.

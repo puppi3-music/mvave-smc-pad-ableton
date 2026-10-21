@@ -321,7 +321,7 @@ colours, not measurements.
 So fourteen colours can share the grid at once, the last four of them pale.
 A design that needs more has to reuse one.
 
-Three ways to more colours were tried the same day and led nowhere:
+Two ways to more colours were tried the same day and did nothing:
 
 - **The MIDI channel.** Green 5 sent to each pad on its own channel, 1 to 16,
   lit all sixteen the same green. Unlike some controllers, the channel sets
@@ -333,12 +333,41 @@ Three ways to more colours were tried the same day and led nowhere:
   126 and 127 both lit nothing, on their own and beside a lit pad. Sent to
   the pads' own notes (1-16) instead of their LED numbers, since the first
   test had the two equal, 127 lit nothing either.
-- **A command for the RGB or the palette.** MidiSuite 1.x's controller code
-  (`CUSBConnect`) has only flash read, write, erase and checksum commands,
-  and its `SmcPad` view uses two flash types: 4, the 12-byte state (3.6), and
-  5, the presets. There is no LED command and no stored palette, so the
-  palette is in the firmware and a pad's RGB changes only by rewriting its
-  preset, which a host-lit pad doesn't show anyway.
+
+#### 3.2.3 A pad's RGB can be set live, but only plain MIDI pads show it
+
+Measured 2026-10-21 on macOS.
+
+- **The editor sets colours by writing the preset.** MidiSuite 1.x's
+  controller code (`CUSBConnect`) has only flash read, write, erase,
+  checksum and save commands, and its `SmcPad` view uses two flash types: 4,
+  the 12-byte state (3.6), and 5, the presets. There is no LED command and no
+  stored palette: the palette is in the firmware.
+- **Type 5 is the presets back to back**, 3539 bytes each in the `.spc`
+  layout (5.2), preset *n* (from 0) at *n* x 3539. Read with command `23`
+  like the state. A pad's RGB is at *n* x 3539 + 211 + 26 x record + 5.
+  All eight presets read; presets 5-8 are the factory layout, plain MIDI
+  notes 4-115 with no LED number.
+- **A write is live and not saved.** Command `22`, as for the state (3.6),
+  with type 5 and 3 bytes, was answered OK in ~1.4 ms, and a plain MIDI pad
+  on the preset that was up changed colour at once (preset 5, `ff 00 00` to
+  `80 00 00`: a visibly darker red). After unplugging, the pad was back to
+  its saved colour, as was a colour set in MidiSuite without saving: writes
+  go to working memory, and only MidiSuite's separate save (`Save_0`) makes
+  them permanent. So writing often wears no flash. Sixteen writes sent right
+  after a preset switch were lost, unanswered; sent again later, they took.
+- **The RGB is full 0-255 per channel**, though the editor's own swatches
+  stop at `f0`. A plain MIDI pad shows it all the time, without being
+  pressed.
+- **A host-lit (MCP) pad never shows it.** With preset 2's sixteen step
+  pads set to `80 00 00` in working memory: dark at velocity 0, dark at 126
+  and 127, and across 64-127 only 64 (blue) and 70 (white) lit. Those pads
+  take the palette only.
+
+So full RGB would mean making the pads plain MIDI and lighting them by
+writing their colour, not by note-on. Plain MIDI pads send on ports 1 and 2,
+velocity-sensitive, not on port 3 (5.6), so a script would have to read them
+there. Not tried.
 
 ### 3.3 Turning a pad off requires note-on velocity 0
 
@@ -1009,3 +1038,5 @@ Collected so nobody re-derives them as facts:
    button LEDs take the palette or are only on/off (5.2).
 8. **Whether the controller sends its status unprompted.** One capture saw a
    once-a-second status with nothing asking; a later one saw none (3.6).
+9. **What a press does to a plain MIDI pad's RGB**, and whether a whole
+   block of records can be written in one message (3.2.3).
