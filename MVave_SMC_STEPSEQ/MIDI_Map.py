@@ -1,7 +1,7 @@
 # Revision of these scripts, for bug reports: the install is "copy a
 # folder", so a downloaded copy carries no commit and nothing else here
 # names a version. Quote this line.
-SCRIPT_REVISION = '2026-10-20h'
+SCRIPT_REVISION = '2026-10-21'
 
 # Hardware and layout constants for the SMC-PAD step sequencer.
 #
@@ -212,14 +212,19 @@ LANE_COLORS = (5, 14, 21, 24)
 # the name; shorter ones ('bd', 'hh') only as a whole word, so 'ch' does not
 # turn "Chord" into a hat. First match wins, so a "Kick Snare" layer is a kick.
 #
-# Colours avoid the playhead's amber (15) and white (40). Two caveats:
+# Colours avoid the playhead's amber (15) and white (40). Caveats:
 #   - Light blue (7, hats) sits near the picker's blue (21). If they blur on
 #     your unit, change one of them.
 #   - 4 and 7 come from the by-eye palette sweep (HARDWARE.md 3.2) and nothing
 #     had lit them in this script before. UNVERIFIED on the pads.
+#   - 'other' was teal (20, COLOR_STEP_ON) until 2026-10-21, but 7 and 20 look
+#     alike (HARDWARE.md 3.2.1) and teal reads as blue on the pads, so hats and
+#     other drums blurred. Violet 26 is the strongest hue no kind or the
+#     playhead uses; it sits two steps from the toms' light purple (24) in the
+#     hue cycle. UNVERIFIED on the pads: if 24 and 26 blur, try pink 12.
 # DRUM_COLORS = False brings back teal steps and LANE_COLORS rows.
 DRUM_COLORS = True
-COLOR_DRUM_OTHER = COLOR_STEP_ON    # teal: a drum none of the kinds below match
+COLOR_DRUM_OTHER = 26               # violet: a drum none of the kinds below match
 DRUM_KINDS = (
     # (kind, colour, name words, General MIDI pitches)
     ('kick', 14, ('kick', 'bd', 'bassdrum'), (35, 36)),           # red-pink

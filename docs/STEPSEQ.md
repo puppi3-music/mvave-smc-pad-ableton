@@ -227,20 +227,25 @@ loop end) but ship off — see "There is no dim" below.
 | hats | light blue 7 | hat, hh, hihat | 42, 44, 46 |
 | cymbals | yellow 4 | crash, ride, cymbal, cym, china, splash | 49, 51–53, 55, 57, 59 |
 | toms | light purple 24 | tom | 41, 43, 45, 47, 48, 50 |
-| anything else | teal 20 | | |
+| anything else | violet 26 | | |
 
 The kind comes from the Drum Rack pad's name, which Live usually takes from the
-sample. A loaded pad's name decides on its own — "Bongo" on C1 is teal, not a
+sample. A loaded pad's name decides on its own — "Bongo" on C1 is violet, not a
 kick — and only an empty pad or a track with no Drum Rack falls back to the
 General MIDI pitch. The Drum Rack is the first one on the **bound clip's** track
 (not the selected track, which can differ while the clip is held; see "The
 clip is pinned"), looking inside Instrument and Effect Racks' chains if there
 is none at the top level. Until 2026-10-20 it read the selected track's top
 level only, so a nested kit or a moved selection left the picker dark. Words of three letters or more match anywhere in the name,
-shorter ones only as a whole word; the first kind that matches wins. Two
-caveats: light blue (hats) sits near the picker's blue (`COLOR_PICK_LOADED`),
-and yellow 4 and light blue 7 were only named by eye in the palette sweep —
-neither has been seen in the sequencer on hardware yet. `DRUM_COLORS = False` brings back teal
+shorter ones only as a whole word; the first kind that matches wins. Until
+2026-10-21 "anything else" was teal 20, but light blue 7 and teal look alike on
+the pads (HARDWARE.md 3.2.1), so hats and other drums were hard to tell apart.
+Violet 26 replaced it: the strongest hue nothing else in the sequencer uses.
+Caveats: light blue (hats) sits near the picker's blue (`COLOR_PICK_LOADED`);
+violet 26 is two steps from the toms' light purple 24 in the hue cycle (try
+pink 12 if they blur); and yellow 4, light blue 7 and violet 26 were only named
+by eye in the palette sweep — none has been seen in the sequencer on hardware
+yet. `DRUM_COLORS = False` brings back teal
 steps and the fixed overview rows (green, red-pink, blue, purple, bottom up),
 and the picker's teal/blue scheme above.
 

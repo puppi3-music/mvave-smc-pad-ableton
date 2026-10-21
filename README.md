@@ -250,6 +250,8 @@ adds it itself on Live 12.4 (`Track.insert_device`).
 - In the sequencer, added 2026-10-20: changing the clip length with Record +
   `<` `>`, skipping empty banks of a Drum Rack, drum colours in the picker, and
   the Stop and arrow LEDs ([STEPSEQ.md](docs/STEPSEQ.md) §1).
+- The sequencer's violet for "anything else" drums, which replaced teal on
+  2026-10-21 because teal and the hi-hats' light blue looked alike.
 - Several `_Framework` behaviours that could not be checked outside Live are
   marked as such in the code and in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
