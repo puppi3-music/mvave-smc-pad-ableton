@@ -12,6 +12,16 @@ preset on the controller:
 
 On every preset the encoders control the selected device.
 
+> **This is a fork of [SDR3078/mvave-smc-pad-ableton](https://github.com/SDR3078/mvave-smc-pad-ableton).**
+> **SDR3078** created the project. They wrote the original clip launcher and
+> mixer, the step sequencer (`MVave_SMC_STEPSEQ`), the encoder script
+> (`MVave_SMC_KNOBS`), the probe tool, the self-test, the measured MIDI
+> reference and the original documentation. This fork, by **puppi3-music**,
+> adds the keyboard and chord modes (presets 3 and 4), device navigation, the
+> startup intro, the four `presets/` files (built from SDR3078's presets) and
+> the user guide, and changes SDR3078's scripts and documents.
+> See [Attribution](#attribution).
+
 Don't have one yet? The SMC-PAD is available on
 [AliExpress](https://www.aliexpress.com/item/1005012967834750.html).
 
@@ -299,6 +309,30 @@ to interpret those notes as mute and solo. It is fully reversible: put
 
 ## Attribution
 
+### The original project: SDR3078
+
+This repository is a fork of
+**[SDR3078/mvave-smc-pad-ableton](https://github.com/SDR3078/mvave-smc-pad-ableton)**.
+SDR3078 created the project and authored every commit up to and including
+`db15547` (6 September 2026), the commit this fork starts from. That covers the
+clip launcher and mixer, the step sequencer, the encoder script, the probe tool
+and self-test, the measured MIDI reference, the two controller presets in
+`reference/` (`launchpad.spc` and `sequencer.spc`) and the original
+documentation.
+
+### This fork: puppi3-music
+
+puppi3-music authored every commit after `db15547`, from 20 October 2026. The
+fork adds the keyboard and chord modes (presets 3 and 4), device navigation, the
+startup intro, `tools/make_presets.py`, `tools/play_intro.py` and the user guide.
+The four files in `presets/` are built from SDR3078's presets. The fork also
+changes SDR3078's scripts and documents, the step sequencer included. Those
+changes build on SDR3078's code. `git log` shows which commits are whose, and
+[DEVELOPMENT.md](docs/DEVELOPMENT.md#origin-and-attribution) has a provenance
+table.
+
+### What the original inherits
+
 `MVave_SMC_PAD/` descends from **Hanz Petrov's "Introduction to the Framework
 Classes"** template, the long-standing starting point for custom Live Remote
 Scripts. Its six `Special*Component.py` files — channel strip, mixer, session,
@@ -306,12 +340,8 @@ transport, view controller and zooming — are template code of **mixed and part
 unverified origin**: substantially Petrov's, but one is marked a partial
 decompile of Ableton's own scripts and another credits an "OpenLabs" module for
 its undo/redo block. See the Licence section below and the file-by-file table in
-[DEVELOPMENT.md](docs/DEVELOPMENT.md). The clip-state colours, the modifier
-button, the keyboard, the startup intro and every value in `MIDI_Map.py` are
-this project's. `MVave_SMC_KNOBS/`, `MVave_SMC_STEPSEQ/`, `tools/` and `docs/`
-are original — bar each package's three-line `__init__.py`, which is the
+[DEVELOPMENT.md](docs/DEVELOPMENT.md). Each package's three-line `__init__.py` is the
 template's boilerplate with the names changed, footer included.
-[DEVELOPMENT.md](docs/DEVELOPMENT.md) carries a file-by-file provenance table.
 
 Not affiliated with or endorsed by Ableton, M-Vave/Cuvave, Novation or Focusrite.
 Product names — including Live, Push, Launchpad and Mackie Control — belong to
@@ -319,9 +349,17 @@ their owners and are used here descriptively.
 
 ## Licence
 
-**Not yet chosen.** `MVave_SMC_KNOBS/`, `MVave_SMC_STEPSEQ/`, `tools/` and
-`docs/` are original work (bar the two `__init__.py` entry points, which are the
-template's boilerplate with the names changed). `MVave_SMC_PAD/` is not, and what it inherits comes
+**None.** The original project,
+[SDR3078/mvave-smc-pad-ableton](https://github.com/SDR3078/mvave-smc-pad-ableton),
+gives its licence in its README as **"Not yet chosen"**, and it has no LICENSE
+file. SDR3078 holds the rights to the code they wrote. This fork can't license
+that code for them, so it has no licence either.
+
+The rest of this section is SDR3078's, from the original README. In it,
+"original work" means SDR3078's: `MVave_SMC_KNOBS/`, `MVave_SMC_STEPSEQ/`,
+`tools/` and `docs/` as they stood at `db15547` were SDR3078's original work (bar
+the `__init__.py` entry points, which are the template's boilerplate with the
+names changed). `MVave_SMC_PAD/` is not, and what it inherits comes
 from **three** upstreams, not one. All three ship, deliberately — the point of
 listing them here is that a reader can see exactly what they are getting:
 
@@ -349,10 +387,10 @@ listing them here is that a reader can see exactly what they are getting:
   kept, and currently unwired (`UNDO = -1`, `REDO = -1`) — see
   [DEVELOPMENT.md](docs/DEVELOPMENT.md) for how to re-enable it.
 
-There is no LICENSE, COPYING or NOTICE file in this repository yet. The one
+The original repository has no LICENSE, COPYING or NOTICE file. The one
 upstream that *can* be identified states no terms of its own, so what
 `MVave_SMC_PAD/` inherits is an absence rather than a permission. That is the
 constraint on choosing a licence for the parts that are original, and it is why
 this section exists in place of one: everything above is disclosed so that
 anyone reusing this can make their own assessment of the parts that are not
-mine to license.
+SDR3078's to license.

@@ -103,6 +103,14 @@ in `tools/stepseq_selftest.py`.
 
 ## Origin and attribution
 
+This repository is a fork of
+[SDR3078/mvave-smc-pad-ableton](https://github.com/SDR3078/mvave-smc-pad-ableton).
+SDR3078 authored every commit up to and including `db15547` (6 September 2026).
+puppi3-music authored every commit after it, from 20 October 2026. In the
+table below, **SDR3078** marks the original author's work and **Fork** marks
+what puppi3-music added. Where both apply, SDR3078 wrote it and the fork changed
+it. "This project" elsewhere in these documents means the two together.
+
 `MVave_SMC_PAD/` is a derivative of **Hanz Petrov's "Introduction to the
 Framework Classes"** template — published on
 [remotescripts.blogspot.com](http://remotescripts.blogspot.com/2010/03/introduction-to-framework-classes.html)
@@ -123,7 +131,7 @@ mode"*, several files carry `# emacs-mode: -*- python-*-` and
 credits *"from OpenLabs module SpecialTransportComponent"* for its undo/redo
 handlers.
 
-`MVave_SMC_KNOBS/` and `MVave_SMC_STEPSEQ/` are original to this project.
+`MVave_SMC_KNOBS/` and `MVave_SMC_STEPSEQ/` are original to this project: SDR3078 wrote both.
 
 | Area | Provenance |
 |---|---|
@@ -135,13 +143,19 @@ handlers.
 | `_load_pad_translations()` / `set_pad_translations()` | Template |
 | All six `Special*Component.py` files — channel strip, mixer, session, transport, view controller, zooming | Template (in turn partly decompiled from Ableton's own scripts, and partly borrowed from the OpenLabs scripts). `SpecialZoomingComponent.py` additionally carries this project's clamp fixes (commit `204acbe`) |
 | `TSB_X` / `TSB_Y` session-box size constants | Unclear — see below |
-| `_apply_clip_colours()` and the `CLIP_*` palette constants | **This project** |
-| `_setup_modifier()` / `_modifier_value()` / `_set_session_banking()` and `MODIFIER` | **This project** |
-| `self._missing_clip_setters` version-tolerance logging | **This project** |
-| `KeysMode.py`, `KeysLayout.py`, `_setup_keys()` and `refresh_state()` | **This project** |
-| Every value in `MIDI_Map.py` (note map, 4×4 grid, palette indices, transport notes) | **This project** |
-| `MVave_SMC_KNOBS/` — except `__init__.py`, which is the template's boilerplate with the names changed, footer included | **This project** |
-| `MVave_SMC_STEPSEQ/` — except `__init__.py`, the same three-line boilerplate as the row above | **This project** |
+| `_apply_clip_colours()` and the `CLIP_*` palette constants | **SDR3078** |
+| `_setup_modifier()` / `_modifier_value()` / `_set_session_banking()` and `MODIFIER` | **SDR3078** |
+| `self._missing_clip_setters` version-tolerance logging | **SDR3078** |
+| `KeysMode.py`, `KeysLayout.py`, `_setup_keys()` and `refresh_state()` | **Fork** |
+| `ChordDevices.py`, `DeviceNav.py`, `StartupIntro.py`, and the macOS LED offset fix and two-bank `PAD BANK` handling (commit `73c7a51`) | **Fork** |
+| Every value in `MIDI_Map.py` (note map, 4×4 grid, palette indices, transport notes) | **SDR3078**, changed by the fork |
+| `MVave_SMC_KNOBS/` — except `__init__.py`, which is the template's boilerplate with the names changed, footer included | **SDR3078**; the fork added automatic device mapping through Live 12's bank table |
+| `MVave_SMC_STEPSEQ/` — except `__init__.py`, the same three-line boilerplate as the row above | **SDR3078**; the fork changed drum colours and recognition, clip creation and Drum Rack lookup |
+| `tools/mvave_probe.py`, `tools/stepseq_selftest.py`, and the measured MIDI reference in `HARDWARE.md` and `PROBE.md` | **SDR3078**; the fork changed `stepseq_selftest.py`, `HARDWARE.md` and `PROBE.md`, and `mvave_probe.py` is unchanged |
+| `reference/launchpad.spc`, `reference/sequencer.spc` | **SDR3078**, unchanged |
+| `reference/smc-pad-launcher-led33.spc`, `reference/smc-pad-sequencer-led69.spc` | **SDR3078**'s two presets above, each with 16 of 3539 bytes changed by the fork |
+| `presets/` | **Fork**, built by `tools/make_presets.py` from the two files above |
+| `tools/make_presets.py`, `tools/play_intro.py`, the user guide (`smc-pad-guide.html`) and its GitHub Pages site | **Fork** |
 
 **The copy in this repo passed through at least one hand between Petrov's
 original and this project.** The `TSB_X`/`TSB_Y` indirection and comments written

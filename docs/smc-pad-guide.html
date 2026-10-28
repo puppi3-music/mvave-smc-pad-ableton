@@ -98,6 +98,7 @@
     letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent);
   }
   .lede { color: var(--muted); font-size: 1.1rem; }
+  .credit { color: var(--muted); font-size: 0.95rem; }
   kbd {
     font-family: var(--mono); font-size: 0.85em;
     background: var(--panel); border: 1px solid var(--line); border-bottom-width: 2px;
@@ -318,6 +319,7 @@
     <span class="eyebrow">M-Vave SMC-PAD × Ableton Live 12</span>
     <h1>Using your SMC-PAD with Live</h1>
     <p class="lede">The controller has four presets: one for launching clips, one for programming drum patterns, one for playing a synth with the pads as a keyboard, and one for playing it in chords. Preset 1 also has a mixer one button press away.</p>
+    <p class="credit">These scripts are based on <a href="https://github.com/SDR3078/mvave-smc-pad-ableton">SDR3078's mvave-smc-pad-ableton</a>. SDR3078 created the project and wrote the original clip launcher, mixer, step sequencer and knob scripts. This version, by <a href="https://github.com/puppi3-music/mvave-smc-pad-ableton">puppi3-music</a>, adds the keyboard and chord presets, the startup intro and this guide, and changes and fixes parts of the original scripts.</p>
     <p><strong>First time?</strong> Do the one-off <a href="#setup">Setup</a> at the bottom of this page, then follow <a href="#flows">Example sessions</a> from the top. They take you from an empty Live set to a recorded jam.</p>
     <figure class="photo">
       <img src="smc-pad.jpg" width="920" height="606" alt="The M-Vave SMC-PAD from above: eight knobs in two columns on the left, a four-by-four grid of sixteen pads in the middle, and a column of ten buttons on the right.">
@@ -1045,6 +1047,7 @@
 
   <footer>
     Presets: 1 <code>preset1-launcher-mixer.spc</code>, 2 <code>preset2-sequencer-drums.spc</code>, 3 <code>preset3-keys.spc</code>, 4 <code>preset4-chords.spc</code>. Scripts: <code>MVave_SMC_PAD</code>, <code>MVave_SMC_KNOBS</code> and <code>MVave_SMC_STEPSEQ</code> in Live's Remote Scripts folder (<a href="#setup">Setup</a>).
+    <br>Based on <a href="https://github.com/SDR3078/mvave-smc-pad-ableton">SDR3078/mvave-smc-pad-ableton</a> by SDR3078. Fork and guide by <a href="https://github.com/puppi3-music/mvave-smc-pad-ableton">puppi3-music</a>. See the README's <a href="https://github.com/puppi3-music/mvave-smc-pad-ableton#attribution">Attribution</a> for who wrote what.
   </footer>
 
 </div>
