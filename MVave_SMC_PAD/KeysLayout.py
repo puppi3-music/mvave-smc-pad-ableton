@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 puppi3-music
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
 # Preset 3's keyboard: which note each pad plays, Launchpad-style.
 #
 # Pure functions with no imports, like DeviceNav, so the self-test can load

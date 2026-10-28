@@ -167,7 +167,10 @@ provenance; do not assume a diff against the original template will be small or
 clean.
 
 The licence position follows from this: `MVave_SMC_PAD/` is inherited, not freely
-chosen. See the Licence section of the [README](../README.md).
+chosen. The files this fork added carry their own licence, AGPL-3.0-or-later
+for code and CC BY-SA 4.0 for the user guide, in each file's
+`SPDX-License-Identifier` line. See the Licence section of the
+[README](../README.md).
 
 ---
 

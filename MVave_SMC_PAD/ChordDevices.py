@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 puppi3-music
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
 # Preset 4's other half: Live's Chord device on the tracks the pads play.
 #
 # A pad translation is one note to one note, so preset 4's pads play each

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 puppi3-music
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
 # The light show when Live loads: for INTRO_SHOW_TICKS the clip grid shows
 # INTRO_STYLE -- a trans flag that unfurls from the left column and waves, or
 # a rainbow that runs diagonally from PAD1 (bottom-left) to the top-right

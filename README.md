@@ -208,7 +208,7 @@ launcher and sequencer sources in `reference/`.
 ├── MVave_SMC_STEPSEQ/    preset 2: the step sequencer                     (copy into Live)
 ├── docs/
 │   ├── smc-pad-guide.html  the user guide: example sessions, cheat sheet, every mode
-│   ├── smc-pad.jpg         picture of the controller used in the guide (© M-Vave)
+│   ├── smc-pad.jpg         photo of the controller used in the guide
 │   ├── index.html          forwards the GitHub Pages site root to the guide
 │   ├── INSTALL.md          setup, verification, troubleshooting, customising
 │   ├── STEPSEQ.md          the step sequencer: behaviour, design, what is unconfirmed
@@ -217,6 +217,7 @@ launcher and sequencer sources in `reference/`.
 │   ├── DEVELOPMENT.md      architecture, _Framework gotchas, porting to another controller
 │   ├── PROBE.md            the measurement tool, mode by mode
 │   └── FINDINGS.md         how the device was reverse-engineered, and what went wrong
+├── LICENSES/             AGPL and CC BY-SA texts for the fork's own files (see Licence)
 ├── presets/              what to load into the controller (see WHICH-PRESET.txt)
 │   ├── preset1-launcher-mixer.spc
 │   ├── preset2-sequencer-drums.spc
@@ -349,11 +350,27 @@ their owners and are used here descriptively.
 
 ## Licence
 
-**None.** The original project,
+This repository mixes code under different terms, so it has no single licence.
+
+**SDR3078's code: no licence.** The original project,
 [SDR3078/mvave-smc-pad-ableton](https://github.com/SDR3078/mvave-smc-pad-ableton),
 gives its licence in its README as **"Not yet chosen"**, and it has no LICENSE
-file. SDR3078 holds the rights to the code they wrote. This fork can't license
-that code for them, so it has no licence either.
+file. SDR3078 holds the rights to the code they wrote, and this fork can't
+license it for them. That covers every file that existed at `db15547`,
+including the fork's changes inside those files.
+
+**The fork's own files: AGPL-3.0-or-later and CC BY-SA 4.0.** These files are
+the fork's and contain no code from SDR3078's files. Each says so in its
+`SPDX-License-Identifier` line.
+
+| Files | Licence |
+|---|---|
+| `MVave_SMC_PAD/KeysMode.py`, `KeysLayout.py`, `ChordDevices.py`, `DeviceNav.py`, `StartupIntro.py`; `tools/make_presets.py`, `tools/play_intro.py` | [GNU AGPL 3.0 or later](LICENSES/AGPL-3.0-or-later.txt) |
+| `docs/smc-pad-guide.html`, `docs/index.html` (the user guide) and `docs/smc-pad.jpg` (the controller photo) | [CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt) |
+
+The photo's licence is in `docs/smc-pad.jpg.license`, since a JPEG can't carry
+the line itself. The AGPL'd files run alongside SDR3078's unlicensed scripts,
+and their licence doesn't extend to those scripts.
 
 The rest of this section is SDR3078's, from the original README. In it,
 "original work" means SDR3078's: `MVave_SMC_KNOBS/`, `MVave_SMC_STEPSEQ/`,

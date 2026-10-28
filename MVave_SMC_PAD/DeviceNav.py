@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 puppi3-music
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
 # Stop + arrows: step Live's blue hand through the selected track's devices.
 #
 # Pure functions over Live objects, with no imports, so the self-test can load

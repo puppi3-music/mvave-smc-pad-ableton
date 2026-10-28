@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 puppi3-music
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Build the mixer, drum and keyboard presets from the working source presets.
 
     python3 tools/make_presets.py

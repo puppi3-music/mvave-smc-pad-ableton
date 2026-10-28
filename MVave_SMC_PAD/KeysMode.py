@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 puppi3-music
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
 # Preset 3's keyboard: Launchpad-style Note mode on the SMC-PAD's lit pads.
 # Preset 4's chords are a second instance (chords=True) on their own notes and
 # LEDs, playing each chord's root for ChordDevices' Chord device to fill out.
